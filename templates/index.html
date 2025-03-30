@@ -1,10 +1,25 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>My Azure Python Web App</title>
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+    <meta charset="UTF-8">
+    <title>Our Animal Family</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <h1>Welcome to my Python web app hosted on Azure!</h1>
+    <div class="page-background">
+        <header>
+            <h1>Meet Our Beloved Animals</h1>
+        </header>
+
+        <main>
+            {% for image in animal_images %}
+            <div class="animal-card">
+                <img src="{{ url_for('static', filename='images/' ~ image) }}" alt="Animal photo">
+                <p class="animal-name">{{ image.split('.')[0] }}</p>
+            </div>
+            {% endfor %}
+        </main>
+    </div>
 </body>
 </html>
