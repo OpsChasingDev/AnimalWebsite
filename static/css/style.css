@@ -58,6 +58,9 @@ header h1 {
     font-weight: bold;
     color: #ffffff;
     text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.4);
+    background-color: rgba(74, 47, 102, 0.75);
+    padding: 10px 20px;
+    border-radius: 16px;
 }
 
 @keyframes clickSubtle {
