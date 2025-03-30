@@ -76,13 +76,13 @@ header h1 {
 
 @keyframes clickSubtle {
     0% {
-        transform: scale(1);
+        transform: scale(1.08);
     }
     50% {
-        transform: scale(0.92);
+        transform: scale(1);
     }
     100% {
-        transform: scale(1);
+        transform: scale(1.08);
     }
 }
 
