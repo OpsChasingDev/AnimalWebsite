@@ -45,6 +45,7 @@ header h1 {
     flex-direction: column;
     align-items: center;
     margin: 80px 0;
+    opacity: 0;
 }
 
 .animal-card img {
@@ -97,4 +98,19 @@ header h1 {
     background-position: center;
     backdrop-filter: blur(4px);
     z-index: -1;
+}
+
+/* Fade-in base class */
+.fade-in {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeInUp 1.2s ease forwards;
+}
+
+/* Fade-in keyframes */
+@keyframes fadeInUp {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

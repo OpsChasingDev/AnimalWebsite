@@ -9,19 +9,21 @@
 </head>
 <body>
     <div class="page-background">
-        <header>
-            <div class="title-frame">
-                <h1>Meet Our Beloved Family</h1>
-            </div>
-        </header>
-        <main>
-            {% for image in animal_images %}
-            <div class="animal-card">
-                <img src="{{ url_for('static', filename='images/animals/' ~ image) }}" alt="Animal photo">
-                <p class="animal-name">{{ image.split('.')[0] }}</p>
-            </div>
-            {% endfor %}
-        </main>
+        <div class="content-container">
+            <header>
+                <div class="title-frame">
+                    <h1>Meet Our Beloved Family</h1>
+                </div>
+            </header>
+            <main>
+                {% for image in animal_images %}
+                <div class="animal-card">
+                    <img src="{{ url_for('static', filename='images/animals/' ~ image) }}" alt="Animal photo">
+                    <p class="animal-name">{{ image.split('.')[0] }}</p>
+                </div>
+                {% endfor %}
+            </main>
+        </div>
     </div>
     <script>
         document.querySelectorAll('.animal-card img').forEach(img => {
@@ -32,6 +34,23 @@
                 }, 200);
             });
         });
-    </script>        
+    </script>
+    <script>
+        window.addEventListener("DOMContentLoaded", () => {
+            const title = document.querySelector(".title-frame");
+            const animals = document.querySelectorAll(".animal-card");
+    
+            // Animate the title
+            title.classList.add("fade-in");
+    
+            // Animate each animal with staggered delay
+            animals.forEach((card, index) => {
+                setTimeout(() => {
+                    card.classList.add("fade-in");
+                }, 1000 + index * 800); // delay based on position
+            });
+        });
+    </script>
+    
 </body>
 </html>
