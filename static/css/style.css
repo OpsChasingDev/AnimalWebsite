@@ -46,6 +46,11 @@ header h1 {
     border-radius: 50%;
     border: 8px solid #d9cce3;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+}
+
+.animal-card img:hover {
+    transform: scale(1.08);
 }
 
 .animal-name {
