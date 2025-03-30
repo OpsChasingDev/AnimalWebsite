@@ -61,6 +61,7 @@ header h1 {
 
 .animal-card img:hover {
     transform: scale(1.08);
+    box-shadow: 0 0 20px rgba(217, 204, 227, 0.7), 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .animal-name {
