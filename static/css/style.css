@@ -7,16 +7,29 @@ body {
 }
 
 .page-background {
-    background-color: #f4f0f8;
+    background-image: url("../images/decorations/mountain_background.png");
+    background-repeat: no-repeat;
+    background-position: center top;
+    background-size: cover;
     min-height: 100vh;
     padding: 60px 20px;
+    background-attachment: fixed;
+}
+
+header {
+    background-image: url("../images/decorations/floral_banner.png");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: cover;
+    padding: 100px 20px 60px;
 }
 
 header h1 {
     text-align: center;
     font-size: 4rem;
-    margin-bottom: 40px;
-    color: #663399;
+    margin: 0;
+    color: #4a2f66;
+    text-shadow: 1px 1px 3px rgba(255, 255, 255, 0.8);
 }
 
 .animal-card {

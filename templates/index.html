@@ -15,7 +15,7 @@
         <main>
             {% for image in animal_images %}
             <div class="animal-card">
-                <img src="{{ url_for('static', filename='images/' ~ image) }}" alt="Animal photo">
+                <img src="{{ url_for('static', filename='images/animals/' ~ image) }}" alt="Animal photo">
                 <p class="animal-name">{{ image.split('.')[0] }}</p>
             </div>
             {% endfor %}

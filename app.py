@@ -5,7 +5,11 @@ app = Flask(__name__)
 
 @app.route("/")
 def index():
-    animal_images = os.listdir(os.path.join(app.static_folder, "images"))
+    image_folder = os.path.join(app.static_folder, "images", "animals")
+    animal_images = [
+        f for f in os.listdir(image_folder)
+        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))
+    ]
     return render_template("index.html", animal_images=animal_images)
 
 if __name__ == "__main__":
