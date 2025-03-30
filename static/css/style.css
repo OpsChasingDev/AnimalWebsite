@@ -7,7 +7,7 @@ body {
 }
 
 .page-background {
-    background-image: url("../images/decorations/mountain_background.png");
+    background-image: url("../images/decorations/lavender_field.jpg");
     background-repeat: no-repeat;
     background-position: center top;
     background-size: cover;
@@ -17,20 +17,17 @@ body {
 }
 
 header {
-    background-image: url("../images/decorations/floral_banner.png");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: cover;
-    padding: 100px 20px 60px;
+    padding: 60px 20px;
+    text-align: center;
 }
 
 header h1 {
     text-align: center;
     font-family: 'Dancing Script', cursive;
-    font-size: 4rem;
+    font-size: 6rem;
     margin: 0;
-    color: #4a2f66;
-    text-shadow: 1px 1px 3px rgba(255, 255, 255, 0.8);
+    color: #d9cce3;
+    text-shadow: 1px 1px 3px #4a2f66(255, 255, 255, 0.8);
 }
 
 .animal-card {
@@ -57,9 +54,10 @@ header h1 {
 
 .animal-name {
     margin-top: 20px;
-    font-size: 2.2rem;
-    font-weight: 600;
-    color: #4a2f66;
+    font-size: 4.5rem;
+    font-weight: bold;
+    color: #ffffff;
+    text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.4);
 }
 
 @keyframes clickSubtle {
@@ -72,4 +70,18 @@ header h1 {
     100% {
         transform: scale(1);
     }
+}
+
+.page-background::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: inherit;
+    background-size: cover;
+    background-position: center;
+    backdrop-filter: blur(4px);
+    z-index: -1;
 }
