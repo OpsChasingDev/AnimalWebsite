@@ -52,7 +52,7 @@ header h1 {
     height: 220px;
     object-fit: cover;
     border-radius: 50%;
-    border: 8px solid #d9cce3;
+    border: 10px solid #d9cce3;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     transition: transform 0.3s ease;
     cursor: pointer;
