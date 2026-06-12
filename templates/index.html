@@ -2,10 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Our Animal Family</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Our Beloved Family</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Lora:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="page-background">
@@ -14,43 +16,37 @@
                 <div class="title-frame">
                     <h1>Meet Our Beloved Family</h1>
                 </div>
+                <p class="tagline">The garden of pets we love</p>
             </header>
-            <main>
-                {% for image in animal_images %}
+
+            <main class="pet-grid">
+                {% for pet in pets %}
                 <div class="animal-card">
-                    <img src="{{ url_for('static', filename='images/animals/' ~ image) }}" alt="Animal photo">
-                    <p class="animal-name">{{ image.split('.')[0] }}</p>
+                    <a href="{{ url_for('pet_detail', slug=pet.slug) }}">
+                        <div class="photo-frame">
+                            <img src="{{ pet.headshot_url }}" alt="{{ pet.name }}">
+                            <div class="bio-overlay">
+                                {{ pet.bio }}
+                                <span class="bio-hint">Read more →</span>
+                            </div>
+                        </div>
+                        <p class="animal-name">{{ pet.name }}</p>
+                    </a>
                 </div>
                 {% endfor %}
             </main>
         </div>
     </div>
-    <script>
-        document.querySelectorAll('.animal-card img').forEach(img => {
-            img.addEventListener('click', () => {
-                img.style.animation = 'clickSubtle 0.3s ease-in-out';
-                setTimeout(() => {
-                    img.style.animation = '';
-                }, 200);
-            });
-        });
-    </script>
+
     <script>
         window.addEventListener("DOMContentLoaded", () => {
             const title = document.querySelector(".title-frame");
-            const animals = document.querySelectorAll(".animal-card");
-    
-            // Animate the title
+            const cards = document.querySelectorAll(".animal-card");
             title.classList.add("fade-in");
-    
-            // Animate each animal with staggered delay
-            animals.forEach((card, index) => {
-                setTimeout(() => {
-                    card.classList.add("fade-in");
-                }, 1000 + index * 800); // delay based on position
+            cards.forEach((card, i) => {
+                setTimeout(() => card.classList.add("fade-in"), 600 + i * 250);
             });
         });
     </script>
-    
 </body>
 </html>

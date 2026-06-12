@@ -1,0 +1,34 @@
+# Single source of truth for deployment-related constants.
+# Skills /deploy-staging and /deploy-prod read this file. If you rename a
+# webapp, move resource groups, or change branch names, edit here.
+
+azure:
+  subscription_id: 61099367-dccb-464a-80c7-497ea6c3b0fd
+  tenant_id: 7a48ae9d-14ba-4845-b7f8-2cd9387bed48
+  resource_group: animalwebsite_group
+
+webapps:
+  staging:
+    name: animalwebsite-staging
+    primary_url: https://staging-pets.stapleton-family.net
+  production:
+    name: animalwebsite
+    primary_url: https://pets.stapleton-family.net
+
+storage:
+  account: animalwebsitestg
+  container: pets
+
+github:
+  repo: OpsChasingDev/AnimalWebsite
+  workflow_name: "Build and deploy AnimalWebsite"
+  branches:
+    staging: staging
+    production: main
+
+deploy:
+  prod_approval_token: "DEPLOY_APPROVED=1"
+  smoke_test_paths:
+    - /
+    - /pets/belle
+    - /pets/lucy

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ pet.name }} — Our Beloved Family</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="page-background">
+        <div class="content-container detail-page">
+            <a class="back-link" href="{{ url_for('index') }}">← back to the family</a>
+
+            <article class="detail-card fade-in">
+                <img class="detail-photo" src="{{ pet.headshot_url }}" alt="{{ pet.name }}">
+                <h1 class="detail-name">{{ pet.name }}</h1>
+                <div class="detail-divider"></div>
+                <p class="detail-bio">{{ pet.bio }}</p>
+
+                {% if pet.gallery_urls %}
+                <h2 class="gallery-heading">Photo album</h2>
+                <div class="gallery">
+                    {% for url in pet.gallery_urls %}
+                    <button class="gallery-thumb" data-full="{{ url }}" aria-label="View photo">
+                        <img src="{{ url }}" alt="{{ pet.name }}" loading="lazy">
+                    </button>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </article>
+        </div>
+    </div>
+
+    <div id="lightbox" class="lightbox" aria-hidden="true" role="dialog">
+        <img id="lightbox-img" alt="">
+        <button id="lightbox-close" aria-label="Close">×</button>
+    </div>
+
+    <script>
+        (() => {
+            const lb = document.getElementById('lightbox');
+            const lbImg = document.getElementById('lightbox-img');
+            const open = (src) => {
+                lbImg.src = src;
+                lb.classList.add('open');
+                lb.setAttribute('aria-hidden', 'false');
+            };
+            const close = () => {
+                lb.classList.remove('open');
+                lb.setAttribute('aria-hidden', 'true');
+                lbImg.src = '';
+            };
+            document.querySelectorAll('.gallery-thumb').forEach(btn => {
+                btn.addEventListener('click', () => open(btn.dataset.full));
+            });
+            lb.addEventListener('click', close);
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') close();
+            });
+        })();
+    </script>
+</body>
+</html>
