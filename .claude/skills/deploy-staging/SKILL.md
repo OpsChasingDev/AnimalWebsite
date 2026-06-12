@@ -27,7 +27,7 @@ Read `.claude/project.yaml` at the start. Use:
 - `webapps.staging.name` — Azure Web App name
 - `webapps.staging.primary_url` — public URL for the smoke test
 - `github.repo` — `owner/repo` for the workflow lookup
-- `github.workflow_name` — workflow display name for `gh run list`
+- `github.workflow_file` — workflow filename for `gh run list --workflow`
 - `github.branches.staging` — staging branch name (normally `staging`)
 - `github.branches.production` — production branch name (normally `main`)
 
@@ -104,26 +104,44 @@ Capture the new HEAD SHA: `git rev-parse <staging-branch>`.
 
 **Step 6 — Watch the workflow run.**
 
-Wait up to 30 seconds for GitHub Actions to register the run. Then:
+Wait 10 seconds for GitHub Actions to register the run. Then locate it:
 
 ```
-gh run list --branch <staging-branch> --workflow "<workflow_name>" \
-  --limit 5 --json databaseId,status,headSha,createdAt
+gh run list --branch <staging-branch> --workflow <workflow_file> \
+  --limit 5 --json databaseId,status,headSha,conclusion
 ```
 
 Pick the run whose `headSha` matches the SHA from Step 5. If none matches
 yet, retry every 5 seconds (up to 6 attempts).
 
-Watch it to completion:
+Poll its state every 10 seconds until `status == "completed"`:
 ```
-gh run watch <run-id> --exit-status
+gh run view <run-id> --json status,conclusion
 ```
 
-This blocks until the workflow finishes and exits non-zero on failure.
+Do NOT use `gh run watch` — its refreshing UI dumps tens of KB of output.
 
-**Step 7 — Smoke test.**
+If `conclusion != "success"`, stop and report (see failure format below).
 
-Only if Step 6 succeeded, run:
+**Step 7 — Ensure app is running.**
+
+The staging Web App can be left in a `Stopped` state by a prior deploy or
+manual action. Check and start if needed:
+```
+az webapp show -n <webapps.staging.name> -g <azure.resource_group> \
+  --query state -o tsv
+```
+
+If the output is `Stopped`, start it and wait for `Running`:
+```
+az webapp start -n <webapps.staging.name> -g <azure.resource_group>
+```
+Sleep 15 seconds, then re-query state. If still not `Running`, stop and
+report.
+
+**Step 8 — Smoke test.**
+
+Only if Steps 6 and 7 succeeded, run:
 ```
 curl -sS -o /dev/null -w "%{http_code}" <webapps.staging.primary_url>/
 ```
@@ -131,7 +149,7 @@ curl -sS -o /dev/null -w "%{http_code}" <webapps.staging.primary_url>/
 If anything other than `200`, report it as a smoke-test failure but do not
 treat the deploy itself as failed (the workflow already confirmed deploy).
 
-**Step 8 — Return to the feature branch.**
+**Step 9 — Return to the feature branch.**
 
 ```
 git checkout <feature-branch>
@@ -139,7 +157,7 @@ git checkout <feature-branch>
 
 So the user can keep iterating without thinking about it.
 
-**Step 9 — Report.**
+**Step 10 — Report.**
 
 On success:
 ```

@@ -21,7 +21,8 @@ storage:
 
 github:
   repo: OpsChasingDev/AnimalWebsite
-  workflow_name: "Build and deploy AnimalWebsite"
+  # Use the workflow file name (stable) not the display name (lags after rename)
+  workflow_file: main_animalwebsite.yml
   branches:
     staging: staging
     production: main
