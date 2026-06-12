@@ -38,7 +38,7 @@ Read `.claude/project.yaml` at the start. Use:
 - `webapps.production.name` — Azure Web App name
 - `webapps.production.primary_url` — public prod URL
 - `github.repo` — `owner/repo`
-- `github.workflow_name` — workflow display name
+- `github.workflow_file` — workflow filename for `gh run list --workflow`
 - `github.branches.staging` — staging branch name
 - `github.branches.production` — production branch name
 - `deploy.smoke_test_paths` — paths to hit after deploy
@@ -113,21 +113,36 @@ Capture the new HEAD SHA: `git rev-parse <prod-branch>`.
 
 **Step 6 — Watch the workflow run.**
 
-Wait up to 30 seconds for the run to register, then:
+Wait 10 seconds for the run to register, then:
 
 ```
-gh run list --branch <prod-branch> --workflow "<workflow_name>" \
-  --limit 5 --json databaseId,status,headSha,createdAt
+gh run list --branch <prod-branch> --workflow <workflow_file> \
+  --limit 5 --json databaseId,status,headSha,conclusion
 ```
 
 Match by `headSha`. Retry every 5 seconds up to 6 attempts if not yet visible.
 
-Then:
+Poll its state every 10 seconds until `status == "completed"`:
 ```
-gh run watch <run-id> --exit-status
+gh run view <run-id> --json status,conclusion
 ```
 
-**Step 7 — Smoke test.**
+Do NOT use `gh run watch`. If `conclusion != "success"`, stop and report.
+
+**Step 7 — Ensure app is running.**
+
+```
+az webapp show -n <webapps.production.name> -g <azure.resource_group> \
+  --query state -o tsv
+```
+
+If `Stopped`, start it:
+```
+az webapp start -n <webapps.production.name> -g <azure.resource_group>
+```
+Sleep 15 seconds, re-query. Must be `Running` before smoke test.
+
+**Step 8 — Smoke test.**
 
 For each path in `deploy.smoke_test_paths`:
 ```
@@ -136,7 +151,7 @@ curl -sS -o /dev/null -w "%{http_code}" <webapps.production.primary_url><path>
 
 All must be `200`. Any non-200 is a smoke-test failure.
 
-**Step 8 — Report.**
+**Step 9 — Report.**
 
 On full success:
 ```
