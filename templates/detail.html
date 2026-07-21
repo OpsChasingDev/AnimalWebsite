@@ -3,29 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ pet.name }} — Our Beloved Family</title>
+    <title>{{ pet.name }} — The Stapleton Pack</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+      .life-dates{text-align:center; font-size:.85rem; letter-spacing:.18em; text-transform:uppercase; opacity:.7; margin:.4rem 0 0;}
+      .thumb-date{display:block; font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; opacity:.65; text-align:center; padding-top:.35rem;}
+    </style>
 </head>
 <body>
     <div class="page-background">
         <div class="content-container detail-page">
-            <a class="back-link" href="{{ url_for('index') }}">← back to the family</a>
+            <a class="back-link" href="{{ url_for('journey') }}">← back to the trail</a>
 
             <article class="detail-card fade-in">
                 <img class="detail-photo" src="{{ pet.headshot_url }}" alt="{{ pet.name }}">
                 <h1 class="detail-name">{{ pet.name }}</h1>
+                {% if pet.born or pet.passed %}
+                <p class="life-dates">
+                    {% if pet.passed %}{{ pet.born[:4] if pet.born }} – {{ pet.passed[:4] }}
+                    {% elif pet.born %}born {{ pet.born[:4] }}{% endif %}
+                </p>
+                {% endif %}
                 <div class="detail-divider"></div>
                 <p class="detail-bio">{{ pet.bio }}</p>
 
-                {% if pet.gallery_urls %}
+                {% if pet.photos %}
                 <h2 class="gallery-heading">Photo album</h2>
                 <div class="gallery">
-                    {% for url in pet.gallery_urls %}
-                    <button class="gallery-thumb" data-full="{{ url }}" aria-label="View photo">
-                        <img src="{{ url }}" alt="{{ pet.name }}" loading="lazy">
+                    {% for ph in pet.photos %}
+                    <button class="gallery-thumb" data-full="{{ ph.large }}" aria-label="View photo">
+                        <img src="{{ ph.thumb }}" alt="{{ pet.name }}" loading="lazy">
+                        <span class="thumb-date">{{ ph.taken }}</span>
                     </button>
                     {% endfor %}
                 </div>
