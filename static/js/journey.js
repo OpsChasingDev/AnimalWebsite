@@ -938,12 +938,31 @@
   let lastIntro = null, lastLabel = '', lastMmx = -1, lastMmy = -1, lastEnd = null;
   let pendingSeason = null, seasonTimer = null;
 
-  function update(){
+  /* The camera is decoupled from the scrollbar: it glides toward the scroll
+     target at a bounded speed. A fast fling becomes a quick smooth flight
+     instead of a teleport, which caps how much fresh world must rasterize
+     per frame — the difference between smooth and janky on impatient
+     scrolling. */
+  let camDist = 0, lastT = 0;
+
+  function update(now){
     const doc = document.documentElement;
     const prog = clamp(scrollY / (doc.scrollHeight - innerHeight), 0, 1);
-    const dist = prog * PLEN;
-    const p = atDist(dist);
-    const ahead = atDist(dist + 480);
+    const target = prog * PLEN;
+    const dt = clamp(now - lastT, 8, 48);
+    lastT = now;
+    const gap = target - camDist;
+    if (reduced || Math.abs(gap) < 0.5){
+      camDist = target;
+    } else {
+      const maxStep = (Math.abs(gap) > 2800 ? 6.2 : 3.2) * dt;   // px per ms budget
+      const step = gap * (1 - Math.exp(-dt / 150));
+      camDist += clamp(step, -maxStep, maxStep);
+      if (Math.abs(target - camDist) < 0.5) camDist = target;
+    }
+    const camProg = camDist / PLEN;
+    const p = atDist(camDist);
+    const ahead = atDist(camDist + 480);
     const camX = p.x + (ahead.x - p.x) * 0.45;
     const camY = p.y;
 
@@ -952,7 +971,7 @@
     map.style.transform = `translate3d(${(-camX).toFixed(1)}px, ${(-camY).toFixed(1)}px, 0)`;
     if (ridge) ridge.style.transform = `translateX(${(-camX * 0.045).toFixed(1)}px)`;
 
-    const arrived = prog > 0.018;
+    const arrived = camProg > 0.012;
     bbs.forEach(b => {
       const on = arrived && b.y > camY - 1500 && b.y < camY + 800;
       if (on !== b.el.classList.contains('on')) b.el.classList.toggle('on', on);
@@ -969,14 +988,14 @@
       if (near !== deer.classList.contains('alert')) deer.classList.toggle('alert', near);
     }
 
-    if (prog < 0.07 || lastIntro !== false){
+    if (prog < 0.07 || lastIntro !== true){
       intro.style.opacity = 1 - clamp(prog / 0.05, 0, 1);
       const hide = prog > 0.055;
       if (hide !== lastIntro){ lastIntro = hide; intro.style.visibility = hide ? 'hidden' : 'visible'; }
     }
 
     const mk = Math.round(monthAtY(camY));
-    const label = prog > 0.985 ? 'Today' : monthLabel(mk);
+    const label = camProg > 0.985 ? 'Today' : monthLabel(mk);
     if (label !== lastLabel){ lastLabel = label; meterYr.textContent = label; }
 
     const season = SEASON_OF(mk);
@@ -993,15 +1012,28 @@
       lastMmx = mcx; lastMmy = mcy;
       mmCam.setAttribute('cx', mcx); mmCam.setAttribute('cy', mcy);
     }
-    const end = prog > 0.965;
+    const end = camProg > 0.965;
     if (end !== lastEnd){ lastEnd = end; endnote.classList.toggle('on', end); }
   }
 
-  let tick = false;
-  const onScroll = () => { if (!tick){ tick = true; requestAnimationFrame(() => { update(); tick = false; }); } };
-  addEventListener('scroll', onScroll, {passive: true});
-  addEventListener('resize', onScroll);
+  /* keep animating until the camera has caught up with the scrollbar */
+  let rafOn = false;
+  function frame(now){
+    update(now);
+    const doc = document.documentElement;
+    const target = clamp(scrollY / (doc.scrollHeight - innerHeight), 0, 1) * PLEN;
+    if (Math.abs(target - camDist) > 0.5) requestAnimationFrame(frame);
+    else rafOn = false;
+  }
+  const kick = () => {
+    if (!rafOn){ rafOn = true; lastT = performance.now(); requestAnimationFrame(frame); }
+  };
+  addEventListener('scroll', kick, {passive: true});
+  addEventListener('resize', kick);
   applyMode();
   setInterval(applyMode, 10 * 60 * 1000);
-  update();
+  // start at the scroll-restored position — no fly-in on refresh
+  camDist = clamp(scrollY / Math.max(1, document.documentElement.scrollHeight - innerHeight), 0, 1) * PLEN;
+  lastT = performance.now();
+  update(lastT);
 })();
