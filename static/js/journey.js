@@ -108,8 +108,8 @@
   defs.appendChild(grad); svg.appendChild(defs);
 
   const ground = document.createElementNS(NS, 'rect');
-  ground.setAttribute('x', -2400); ground.setAttribute('y', -800);
-  ground.setAttribute('width', W + 4800); ground.setAttribute('height', LEN + 1600);
+  ground.setAttribute('x', -1100); ground.setAttribute('y', -500);
+  ground.setAttribute('width', W + 2200); ground.setAttribute('height', LEN + 1000);
   ground.setAttribute('fill', 'url(#seasons)');
   svg.appendChild(ground);
 
@@ -153,8 +153,8 @@
   const creekGroup = document.createElementNS(NS, 'g');
   {
     const cx = trailXAtY(creekY);
-    let cd = `M -2300 ${creekY + 40}`;
-    for (let x = -2200; x <= W + 2300; x += 300){
+    let cd = `M -1100 ${creekY + 40}`;
+    for (let x = -1000; x <= W + 1100; x += 300){
       cd += ` Q ${x - 150} ${creekY + ((x/300) % 2 ? 74 : -12)}, ${x} ${creekY + 30}`;
     }
     creekGroup.innerHTML =
@@ -206,7 +206,7 @@
   for (let d = 250; d < PLEN - 250; d += 210 + rnd() * 150){
     const p = atDist(d);
     const off = (rnd() > 0.5 ? 1 : -1) * (300 + rnd() * 850);
-    const x = clamp(p.x + off, -1500, W + 1500), yy = p.y + (rnd() - 0.5) * 160;
+    const x = clamp(p.x + off, -950, W + 950), yy = p.y + (rnd() - 0.5) * 160;
     const season = SEASON_OF(Math.round(monthAtY(yy)));
     const r = rnd();
     if (r < 0.24){       // scree / pebbles
@@ -236,7 +236,7 @@
 
   /* cloud shadows drifting over the ground */
   if (!reduced){
-    for (let i = 0; i < 3; i++){
+    for (let i = 0; i < 2; i++){
       const c = document.createElement('div');
       c.className = 'cloudshadow';
       const w = 700 + rnd() * 500;
@@ -315,15 +315,16 @@
   };
   const eventClear = (x, y) => pts.some(p => Math.abs(p.y - y) < 380 && Math.abs(p.x - x) < 560);
 
-  /* forest: pines with real height flanking the corridor */
-  const treeTarget = clamp(Math.round(LEN / 78), 60, 170);
+  /* forest: pines + boulders merged into grove clusters — one composited
+     surface per ~520px stretch per side, instead of one per tree */
+  const groveItems = [];
+  const treeTarget = clamp(Math.round(LEN / 95), 50, 120);
   let placed = 0, guard = 0;
   while (placed < treeTarget && guard++ < treeTarget * 5){
     const d = 120 + rnd() * (PLEN - 240);
     const p = atDist(d);
-    const off = (rnd() > 0.5 ? 1 : -1) * (360 + Math.pow(rnd(), 0.6) * 780);
-    const x = p.x + off, yy = p.y + (rnd() - 0.5) * 200;
-    if (x < -1300 || x > W + 1300) continue;
+    const off = (rnd() > 0.5 ? 1 : -1) * (360 + Math.pow(rnd(), 0.6) * 640);
+    const x = clamp(p.x + off, -950, W + 950), yy = p.y + (rnd() - 0.5) * 200;
     if (eventClear(x, yy)) continue;
     if (pondPos && Math.abs(pondPos.x - x) < 300 && Math.abs(pondPos.y - yy) < 220) continue;
     if (Math.abs(yy - creekY) < 130) continue;
@@ -333,20 +334,36 @@
     const isPine = rnd() < 0.74;
     const leafTone = season === 'autumn' ? (rnd() > 0.5 ? '#B9823E' : '#A8944E')
                    : season === 'winter' ? '#9AA88E' : (rnd() > 0.5 ? '#6E8F4E' : '#7C9E58');
-    prop(x, yy, isPine ? pineSVG(h, tone, dark) : broadleafSVG(h * 0.8, leafTone),
-         {shadow: h * 0.3, cls: rnd() < 0.25 ? 'sway' : ''});
+    groveItems.push({x, y: yy, svg: isPine ? pineSVG(h, tone, dark) : broadleafSVG(h * 0.8, leafTone), sh: h * 0.3});
     placed++;
   }
-
-  /* boulders + outcrops */
   for (let i = 0; i < Math.round(LEN / 900); i++){
     const d = rnd() * PLEN;
     const p = atDist(d);
-    const off = (rnd() > 0.5 ? 1 : -1) * (430 + rnd() * 620);
-    const x = p.x + off, yy = p.y + (rnd() - 0.5) * 150;
+    const off = (rnd() > 0.5 ? 1 : -1) * (430 + rnd() * 520);
+    const x = clamp(p.x + off, -950, W + 950), yy = p.y + (rnd() - 0.5) * 150;
     if (eventClear(x, yy) || Math.abs(yy - creekY) < 140) continue;
-    prop(x, yy, boulderSVG(70 + rnd() * 90), {shadow: 44});
+    groveItems.push({x, y: yy, svg: boulderSVG(70 + rnd() * 90), sh: 44});
   }
+  const groves = {};
+  groveItems.forEach(it => {
+    const key = Math.floor(it.y / 520) + '|' + (it.x < CX ? 'L' : 'R');
+    (groves[key] = groves[key] || []).push(it);
+  });
+  Object.values(groves).forEach(items => {
+    const baseY = Math.max(...items.map(i => i.y));
+    const baseX = items.reduce((a, i) => a + i.x, 0) / items.length;
+    const el = document.createElement('div');
+    el.className = 'grove';
+    el.style.left = baseX + 'px'; el.style.top = baseY + 'px';
+    el.innerHTML = items
+      .sort((a, b) => a.y - b.y)   // farther trees paint first
+      .map(i => `<div class="gi" style="left:${(i.x - baseX).toFixed(0)}px; bottom:${((baseY - i.y) * 0.55).toFixed(0)}px;">${i.svg}</div>`)
+      .join('');
+    map.appendChild(el);
+    props.push({el, y: baseY});
+    items.forEach(i => addShadow(i.x, i.y, i.sh));
+  });
 
   /* home at the trailhead */
   const homeX = pts[0].x + 300, homeY = pts[0].y + 430;
@@ -525,10 +542,8 @@
   styleEl.textContent = `
     .goldpaw{position:absolute; width:40px; height:40px; cursor:pointer; transform:translate(-50%,-50%);
       transition:transform .6s, opacity .6s; z-index:2;}
-    .goldpaw svg{filter:drop-shadow(0 0 6px rgba(201,162,39,.75)); animation:pawpulse 3.2s ease-in-out infinite;}
-    @keyframes pawpulse{0%,100%{opacity:.75}50%{opacity:1}}
-    .goldpaw.found{transform:translate(-50%,-50%) scale(2.2); opacity:0; pointer-events:none;}
-    @media (prefers-reduced-motion: reduce){ .goldpaw svg{animation:none;} }`;
+    .goldpaw svg{filter:drop-shadow(0 0 6px rgba(201,162,39,.75));}
+    .goldpaw.found{transform:translate(-50%,-50%) scale(2.2); opacity:0; pointer-events:none;}`;
   document.head.appendChild(styleEl);
   const PAW_SVG = `<svg width="40" height="40" viewBox="0 0 40 40" fill="#C9A227">
     <ellipse cx="20" cy="25" rx="8" ry="9"/>
@@ -920,6 +935,8 @@
   const ridge = document.getElementById('ridgeInner');
   const spacer = document.getElementById('spacer');
   spacer.style.height = Math.round(PLEN * 1.12 + innerHeight) + 'px';
+  let lastIntro = null, lastLabel = '', lastMmx = -1, lastMmy = -1, lastEnd = null;
+  let pendingSeason = null, seasonTimer = null;
 
   function update(){
     const doc = document.documentElement;
@@ -941,9 +958,10 @@
       if (on !== b.el.classList.contains('on')) b.el.classList.toggle('on', on);
     });
     props.forEach(pr => {
-      const vis = pr.y > camY - 1700 && pr.y < camY + 900;
-      const cur = pr.el.style.visibility !== 'hidden';
-      if (vis !== cur) pr.el.style.visibility = vis ? '' : 'hidden';
+      const vis = pr.y > camY - 1900 && pr.y < camY + 1100;
+      if (vis === !pr.hidden) return;
+      pr.hidden = !vis;
+      pr.el.style.display = vis ? '' : 'none';
     });
 
     if (deer){
@@ -951,20 +969,32 @@
       if (near !== deer.classList.contains('alert')) deer.classList.toggle('alert', near);
     }
 
-    intro.style.opacity = 1 - clamp(prog / 0.05, 0, 1);
-    intro.style.visibility = prog > 0.055 ? 'hidden' : 'visible';
-
-    const mk = Math.round(monthAtY(camY));
-    meterYr.textContent = prog > 0.985 ? 'Today' : monthLabel(mk);
-
-    const season = SEASON_OF(mk);
-    if (season !== weatherSeason){
-      weatherSeason = season;
-      refreshAmbient();
+    if (prog < 0.07 || lastIntro !== false){
+      intro.style.opacity = 1 - clamp(prog / 0.05, 0, 1);
+      const hide = prog > 0.055;
+      if (hide !== lastIntro){ lastIntro = hide; intro.style.visibility = hide ? 'hidden' : 'visible'; }
     }
 
-    mmCam.setAttribute('cx', mmX(p.x)); mmCam.setAttribute('cy', mmY(p.y));
-    endnote.classList.toggle('on', prog > 0.965);
+    const mk = Math.round(monthAtY(camY));
+    const label = prog > 0.985 ? 'Today' : monthLabel(mk);
+    if (label !== lastLabel){ lastLabel = label; meterYr.textContent = label; }
+
+    const season = SEASON_OF(mk);
+    if (season !== pendingSeason){
+      pendingSeason = season;
+      clearTimeout(seasonTimer);
+      seasonTimer = setTimeout(() => {
+        if (pendingSeason !== weatherSeason){ weatherSeason = pendingSeason; refreshAmbient(); }
+      }, 450);
+    }
+
+    const mcx = Math.round(mmX(p.x)), mcy = Math.round(mmY(p.y));
+    if (mcx !== lastMmx || mcy !== lastMmy){
+      lastMmx = mcx; lastMmy = mcy;
+      mmCam.setAttribute('cx', mcx); mmCam.setAttribute('cy', mcy);
+    }
+    const end = prog > 0.965;
+    if (end !== lastEnd){ lastEnd = end; endnote.classList.toggle('on', end); }
   }
 
   let tick = false;

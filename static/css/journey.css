@@ -25,25 +25,27 @@ body.t-dusk .ridge{filter:brightness(.85) sepia(.25);}
 .map{position:absolute; left:0; top:0; transform-style:preserve-3d; will-change:transform;}
 .map > svg{position:absolute; left:0; top:0; overflow:visible; display:block;}
 
-/* creek shimmer + pond */
-.shimmer{animation:shimmer 5.5s linear infinite;}
-@keyframes shimmer{from{stroke-dashoffset:0}to{stroke-dashoffset:-88}}
+/* water highlights are static: animating them repaints the whole ground SVG */
 
 /* cloud shadows drifting over the ground */
-.cloudshadow{position:absolute; border-radius:50%; background:rgba(40,54,36,.09); filter:blur(34px);
+.cloudshadow{position:absolute; border-radius:50%; background:radial-gradient(ellipse, rgba(40,54,36,.11) 0%, rgba(40,54,36,.05) 55%, transparent 72%);
   pointer-events:none; animation:clouddrift 100s ease-in-out infinite alternate;}
 @keyframes clouddrift{from{transform:translate(0,0)}to{transform:translate(640px,120px)}}
 
 /* ---------- billboards ---------- */
 .bb{position:absolute; transform-origin:50% 100%;
   transform:translate(-50%,-100%) rotateX(calc(var(--tilt) * -1));
-  opacity:0; transition:opacity .7s, translate .7s; translate:0 26px; pointer-events:auto;}
+  opacity:0; transition:opacity .7s, translate .7s; translate:0 26px; pointer-events:auto;
+  backface-visibility:hidden;}
 .bb.on{opacity:1; translate:0 0;}
 .prop{position:absolute; transform-origin:50% 100%;
-  transform:translate(-50%,-100%) rotateX(calc(var(--tilt) * -1)); pointer-events:none;}
+  transform:translate(-50%,-100%) rotateX(calc(var(--tilt) * -1)); pointer-events:none;
+  backface-visibility:hidden;}
 .prop svg{display:block; overflow:visible;}
-.prop.sway svg{animation:sway 5s ease-in-out infinite alternate; transform-origin:50% 100%;}
-@keyframes sway{from{transform:rotate(-1.6deg)}to{transform:rotate(1.6deg)}}
+.grove{position:absolute; transform-origin:50% 100%;
+  transform:rotateX(calc(var(--tilt) * -1)); pointer-events:none; backface-visibility:hidden;}
+.grove .gi{position:absolute; transform:translateX(-50%);}
+.grove .gi svg{display:block; overflow:visible;}
 
 .bb .nm, .bb .age, .bb .sub, .bb .yrs, .bb .line, .bb-today h2, .bb-today p{
   text-shadow:0 1px 0 rgba(238,240,224,.85), 0 0 4px rgba(238,240,224,.95), 0 0 16px rgba(238,240,224,.85);}
@@ -186,6 +188,7 @@ body.t-night .xlights circle{filter:brightness(1.8) drop-shadow(0 0 4px currentC
   animation-delay:var(--delay); opacity:.85;}
 @keyframes fall{from{transform:translate(0,-4vh) rotate(0deg)}to{transform:translate(var(--drift), 108vh) rotate(var(--spin));}}
 #skytint{position:fixed; inset:0; z-index:14; pointer-events:none; transition:background 2s; mix-blend-mode:multiply;}
+body.t-day #skytint{display:none;}
 body.t-dusk #skytint{background:linear-gradient(180deg, rgba(255,196,140,.55), rgba(244,214,170,.82) 55%, rgba(238,220,180,.85));}
 body.t-night #skytint{background:linear-gradient(180deg, rgba(88,100,140,.85), rgba(104,114,148,.8) 55%, rgba(96,106,136,.82));}
 #stars{position:fixed; left:0; right:0; top:0; height:34vh; z-index:2; pointer-events:none; opacity:0; transition:opacity 2s;}
@@ -240,7 +243,7 @@ body.t-night #stars{opacity:1;}
   .hud-left{left:8px; bottom:14px;}
 }
 @media (prefers-reduced-motion: reduce){
-  .intro .hint, .cloudshadow, .flutter, .flutter svg, .shimmer, .home-smoke, .wpart,
-  .firefly, .bird svg, .prop.sway svg{animation:none;}
+  .intro .hint, .cloudshadow, .flutter, .flutter svg, .home-smoke, .wpart,
+  .firefly, .bird svg{animation:none;}
   .bb,.fan .fp,.endnote,.lore-chip{transition:none;}
 }
