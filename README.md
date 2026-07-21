@@ -37,6 +37,13 @@ pets/
 }
 ```
 
+- **Hidden memories (easter eggs):** `_trail/lore.json` in the container holds
+  a list of `{"date": "2017-05", "item": "tennis-ball", "dog": "lucy",
+  "note": "..."}` entries. Items: tennis-ball, slipper, bone, stick, sock,
+  bowl, party-hat. Each becomes a small clickable object hidden near the
+  trail at that date.
+- **Preview lighting:** append `?t=day`, `?t=dusk`, or `?t=night` to the URL
+  to preview a time of day; without it the site uses the visitor's local time.
 - **New pet:** create the folder with a headshot and meta.json. Done.
 - **New photos:** upload to `gallery/` with a date prefix. They join that
   season's camp on the trail automatically.
