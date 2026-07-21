@@ -239,12 +239,32 @@ def build_model() -> dict:
     events.sort(key=lambda e: (e["month"], 0 if e["type"] == "union" else 1))
     events.append({"type": "today", "month": now_month})
 
+    # family lore easter eggs: optional _trail/lore.json in the container
+    lore = []
+    lore_raw = _fetch_blob("_trail/lore.json")
+    if lore_raw:
+        try:
+            parsed = json.loads(lore_raw)
+            if isinstance(parsed, list):
+                for item in parsed:
+                    mk = _month_key(item.get("date"))
+                    if mk is not None and item.get("note"):
+                        lore.append({
+                            "month": mk,
+                            "item": item.get("item", "bone"),
+                            "dog": item.get("dog"),
+                            "note": item["note"],
+                        })
+        except ValueError:
+            pass
+
     return {
         "generated": datetime.utcnow().isoformat() + "Z",
         "trailhead_month": union_month,
         "now_month": now_month,
         "pets": pets,
         "events": events,
+        "lore": lore,
     }
 
 

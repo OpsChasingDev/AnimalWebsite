@@ -4,145 +4,27 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Stapleton Pack — A Walk Through the Years</title>
-<style>
-  :root{
-    --paper:#EEF0E0; --ink:#39422E; --faded:#6B7359; --gold:#C9A227; --traildark:#6B5C40;
-    --display:"Palatino","Palatino Linotype","Book Antiqua","URW Palladio L",serif;
-    --body:Georgia,"Times New Roman",serif;
-    --mono:"SF Mono",Menlo,Consolas,monospace;
-    --tilt:52deg;
-  }
-  html,body{margin:0;padding:0;}
-  body{background:var(--paper); color:var(--ink); font-family:var(--body); overflow-x:hidden;}
-
-  /* distant haze beyond the top of the diorama */
-  .scene{position:fixed; inset:0; overflow:hidden; perspective:1400px; perspective-origin:50% 36%;
-    background:linear-gradient(180deg,#DFE8DC 0%, #E9EDD9 26%, #EEF0E0 48%, #E4E8CF 100%);}
-  .zoom{position:absolute; left:50%; top:57%; transform-style:preserve-3d;}
-  .tilt{position:absolute; left:0; top:0; transform-style:preserve-3d; transform:rotateX(var(--tilt));}
-  .map{position:absolute; left:0; top:0; transform-style:preserve-3d; will-change:transform;}
-  .map > svg{position:absolute; left:0; top:0; overflow:visible; display:block;}
-
-  /* ---------- billboards (stand up out of the map plane) ---------- */
-  .bb{position:absolute; transform-origin:50% 100%;
-    transform:translate(-50%,-100%) rotateX(calc(var(--tilt) * -1));
-    opacity:0; transition:opacity .7s, translate .7s; translate:0 26px; pointer-events:auto;}
-  .bb.on{opacity:1; translate:0 0;}
-  .bb .nm, .bb .age, .bb .sub, .bb .yrs, .bb .line, .bb-today h2, .bb-today p{
-    text-shadow:0 1px 0 rgba(238,240,224,.85), 0 0 4px rgba(238,240,224,.95), 0 0 16px rgba(238,240,224,.85);}
-  .bb .date-chip{display:inline-block; background:var(--acc,var(--gold)); color:#fff; font-size:11px;
-    letter-spacing:.16em; text-transform:uppercase; padding:4px 12px; border-radius:999px;}
-
-  .bb-union{width:560px; text-align:center;}
-  .bb-union .ports{display:flex; justify-content:center; gap:56px;}
-  .bb-union .p{width:190px;}
-  .bb-union .p img{width:100%; aspect-ratio:1; object-fit:cover; border-radius:50%;
-    border:5px solid var(--acc); box-shadow:0 16px 38px rgba(57,66,46,.3); display:block; background:#fff;}
-  .bb-union .p .nm{font-family:var(--display); font-style:italic; font-size:26px; margin-top:8px;}
-  .bb-union svg.arc{overflow:visible; display:block; margin:0 auto -34px;}
-  .bb-union .sub{color:var(--faded); font-style:italic; font-size:15px; margin:10px 0 0;}
-
-  .bb-arrival{width:300px; text-align:center;}
-  .bb-arrival img{width:200px; aspect-ratio:1; object-fit:cover; border-radius:50%;
-    border:5px solid var(--acc); box-shadow:0 16px 36px rgba(57,66,46,.3); background:#fff;}
-  .bb-arrival .nm{font-family:var(--display); font-style:italic; font-size:26px; margin:8px 0 4px;}
-  .bb-arrival .age{font-size:12px; color:var(--faded); margin:6px 0 0;}
-
-  .bb-camp{width:270px; text-align:center; cursor:pointer;}
-  .bb-camp .frame{width:230px; margin:0 auto; background:#FBF9EE; border-radius:12px; padding:9px 9px 7px;
-    box-shadow:0 14px 32px rgba(57,66,46,.26); border:1px solid #E0DCC4;}
-  .bb-camp .frame img{width:100%; aspect-ratio:1; object-fit:cover; border-radius:7px; display:block;}
-  .bb-camp .count{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--faded); padding:6px 0 2px;}
-  .bb-camp .post{width:9px; height:52px; margin:0 auto; background:#8F7B57; border-radius:0 0 4px 4px;}
-  .bb-camp .date-chip{margin-bottom:8px;}
-  .bb-camp:focus-visible{outline:3px solid var(--gold); outline-offset:4px;}
-
-  .fan{position:absolute; left:50%; bottom:36px; pointer-events:none;}
-  .fan .fp{position:absolute; left:0; bottom:0; width:118px; background:#FBF9EE; border-radius:9px; padding:6px;
-    border:2px solid var(--acc); box-shadow:0 10px 24px rgba(57,66,46,.3); cursor:pointer;
-    transform:translate(-50%,0) scale(.2); opacity:0; transition:transform .5s cubic-bezier(.2,.9,.3,1.15), opacity .4s;}
-  .fan .fp img{width:100%; aspect-ratio:1; object-fit:cover; border-radius:5px; display:block; pointer-events:none;}
-  .bb-camp.open .fan{pointer-events:auto;}
-  .bb-camp.open .fan .fp{opacity:1; transform:translate(-50%, var(--fy)) translateX(var(--fx)) scale(1);}
-  .map.dimmed .bb:not(.open){opacity:.22;}
-
-  .bb-lantern{width:320px; text-align:center;}
-  .bb-lantern .halo{width:210px; height:210px; margin:0 auto -172px; border-radius:50%;
-    background:radial-gradient(circle, rgba(201,162,39,.4) 0%, rgba(201,162,39,.12) 55%, transparent 75%);}
-  .bb-lantern img{width:150px; aspect-ratio:1; object-fit:cover; border-radius:50%; position:relative;
-    border:5px solid var(--gold); box-shadow:0 0 44px 6px rgba(201,162,39,.45); background:#fff;}
-  .bb-lantern .nm{font-family:var(--display); font-style:italic; font-size:27px; margin:10px 0 3px;}
-  .bb-lantern .yrs{font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:var(--faded);}
-  .bb-lantern .line{font-style:italic; color:var(--faded); font-size:14px; margin:8px 0 0;}
-
-  .bb-today{width:640px; text-align:center;}
-  .bb-today .star{color:var(--gold); font-size:42px; line-height:1; margin-bottom:8px;
-    text-shadow:0 0 22px rgba(201,162,39,.8);}
-  .bb-today .row{display:flex; justify-content:center; gap:26px;}
-  .bb-today .row img{width:150px; aspect-ratio:1; object-fit:cover; border-radius:50%;
-    border:4px solid var(--acc); box-shadow:0 14px 32px rgba(57,66,46,.28); background:#fff;}
-  .bb-today h2{font-family:var(--display); font-style:italic; font-weight:400; font-size:30px; margin:18px 0 6px;}
-  .bb-today p{color:var(--faded); font-size:14px; margin:0;}
-
-  /* ---------- fixed overlays ---------- */
-  .intro{position:fixed; left:50%; top:7vh; transform:translateX(-50%); z-index:20; text-align:center;
-    width:min(92vw,620px); background:rgba(238,240,224,.78); backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px);
-    border-radius:20px; padding:26px 30px; box-sizing:border-box; transition:opacity .4s;}
-  .intro .eyebrow{font-size:12px; letter-spacing:.28em; text-transform:uppercase; color:var(--faded); margin:0 0 14px;}
-  .intro h1{font-family:var(--display); font-style:italic; font-weight:400; font-size:clamp(34px,6.4vw,56px); margin:0 0 12px; line-height:1.05;}
-  .intro p{font-size:clamp(14px,2vw,16px); line-height:1.6; color:var(--faded); margin:0;}
-  .intro .hint{margin-top:14px; font-size:11px; letter-spacing:.24em; text-transform:uppercase; animation:bob 2.4s ease-in-out infinite;}
-  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
-
-  .meter{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:20;
-    background:rgba(57,66,46,.85); color:#F2F0E2; border-radius:999px; padding:8px 20px;
-    display:flex; align-items:center; gap:12px; font-size:12px; transition:opacity .4s;}
-  .meter .lbl{font-size:10px; letter-spacing:.22em; text-transform:uppercase; opacity:.75;}
-  .meter .yr{font-family:var(--display); font-style:italic; font-size:19px; min-width:88px; text-align:center;}
-
-  #minimap{position:fixed; right:14px; top:50%; transform:translateY(-50%); z-index:20; cursor:pointer;}
-  #minimap svg{display:block;}
-
-  .lightbox{position:fixed; inset:0; z-index:40; background:rgba(35,40,28,.86); display:none;
-    align-items:center; justify-content:center; padding:4vh 4vw;}
-  .lightbox.open{display:flex;}
-  .lightbox figure{margin:0; max-width:min(920px,92vw); text-align:center;}
-  .lightbox img{max-width:100%; max-height:72vh; border-radius:10px; border:4px solid #FBF9EE;
-    box-shadow:0 30px 80px rgba(0,0,0,.5); background:#222;}
-  .lightbox figcaption{color:#EFEDE0; margin-top:14px; font-size:15px;}
-  .lightbox .who{display:inline-block; background:var(--acc,var(--gold)); color:#fff; font-size:11px;
-    letter-spacing:.16em; text-transform:uppercase; padding:4px 12px; border-radius:999px; margin-right:10px;}
-  .lightbox .cap{display:block; font-style:italic; color:#C9CBB4; margin-top:8px;}
-  .lightbox button{position:absolute; background:rgba(238,240,224,.14); color:#F2F0E2; border:1px solid rgba(238,240,224,.4);
-    border-radius:50%; width:46px; height:46px; font-size:19px; cursor:pointer;}
-  .lightbox button:hover{background:rgba(238,240,224,.3);}
-  #lb-close{top:22px; right:22px;}
-  #lb-prev{left:18px; top:50%; transform:translateY(-50%);}
-  #lb-next{right:18px; top:50%; transform:translateY(-50%);}
-
-  .endnote{position:fixed; left:50%; top:6vh; transform:translateX(-50%); z-index:18; text-align:center;
-    width:min(92vw,560px); background:rgba(238,240,224,.9); border-radius:16px; padding:16px 22px; box-sizing:border-box;
-    opacity:0; pointer-events:none; transition:opacity .6s;}
-  .endnote.on{opacity:1;}
-  .endnote .tag{font-size:10px; letter-spacing:.24em; text-transform:uppercase; color:var(--faded); margin:0 0 8px;}
-  .endnote p{font-size:13px; line-height:1.65; color:var(--faded); margin:0;}
-  .endnote code{font-family:var(--mono); font-size:11px; color:var(--ink);}
-  .endnote a{color:var(--ink);}
-
-  @media (max-width:700px){
-    .bb-union{width:440px;} .bb-union .p{width:150px;} .bb-union .ports{gap:34px;}
-    .bb-today{width:520px;} .bb-today .row img{width:110px;}
-    #minimap{right:6px;}
-  }
-  @media (prefers-reduced-motion: reduce){
-    .intro .hint{animation:none;}
-    .bb,.fan .fp,.endnote{transition:none;}
-  }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/journey.css') }}">
 </head>
-<body>
+<body class="t-day">
 
 <div class="scene" id="scene">
+  <div class="ridge" id="ridge">
+    <div id="ridgeInner">
+      <svg viewBox="0 0 1600 300" preserveAspectRatio="none" height="220" width="110%">
+        <path d="M0 300 L0 190 L140 120 L260 200 L420 70 L560 180 L700 110 L860 210 L1020 90 L1180 190 L1330 130 L1470 200 L1600 150 L1600 300 Z"
+              fill="#C2CFC4" opacity=".8"/>
+        <path d="M420 70 L470 130 L370 130 Z M1020 90 L1065 145 L975 145 Z" fill="#E9EDE6" opacity=".9"/>
+        <path d="M0 300 L0 240 L180 180 L340 250 L520 160 L720 240 L900 170 L1090 250 L1260 190 L1430 250 L1600 210 L1600 300 Z"
+              fill="#9FB29E"/>
+        <g fill="#77906F">
+          <path d="M200 250 L212 222 L224 250 Z M232 252 L242 230 L252 252 Z"/>
+          <path d="M740 244 L752 216 L764 244 Z M772 246 L782 224 L792 246 Z"/>
+          <path d="M1290 246 L1302 218 L1314 246 Z"/>
+        </g>
+      </svg>
+    </div>
+  </div>
   <div class="zoom" id="zoom">
     <div class="tilt">
       <div class="map" id="map"></div>
@@ -150,15 +32,40 @@
   </div>
 </div>
 
+<div id="stars" aria-hidden="true"></div>
+<div id="skytint" aria-hidden="true"></div>
+<div id="weather" aria-hidden="true"></div>
+
 <header class="intro" id="intro">
   <p class="eyebrow">The Stapleton Pack</p>
   <h1>A Walk Through the Years</h1>
-  <p>One winding trail, every season the pack has known. Scroll to follow it &mdash; it begins the day Belle and Lucy&rsquo;s paths joined.</p>
+  <p>One trail up the valley, every season the pack has known. It begins at home,
+     the day Belle and Lucy&rsquo;s paths joined &mdash; scroll to walk it.</p>
   <p class="hint">&#9662; scroll to walk</p>
 </header>
 
 <div class="meter" id="meter"><span class="lbl">Walking through</span><span class="yr" id="meterYr">&nbsp;</span></div>
 <div id="minimap" title="Jump along the trail"></div>
+
+<div class="hud-left">
+  <div class="pawcounter" id="pawcounter" title="Golden paw prints are hidden along the trail">
+    <svg width="20" height="20" viewBox="0 0 40 40" fill="#C9A227">
+      <ellipse cx="20" cy="25" rx="8" ry="9"/>
+      <circle cx="10" cy="15" r="4"/><circle cx="16" cy="10" r="4"/>
+      <circle cx="24" cy="10" r="4"/><circle cx="30" cy="15" r="4"/>
+    </svg>
+    <span id="pawcount">0 / 7</span>
+    <span class="msg" id="pawmsg">the pack approves</span>
+  </div>
+  <button class="sound-btn" id="soundbtn" aria-pressed="false" aria-label="Toggle ambient sound" title="Soft birdsong &amp; wind">
+    <svg class="off-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 5 L6 9 H2 v6 h4 l5 4 Z"/><line x1="16" y1="9" x2="22" y2="15"/><line x1="22" y1="9" x2="16" y2="15"/>
+    </svg>
+    <svg class="on-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 5 L6 9 H2 v6 h4 l5 4 Z"/><path d="M15.5 8.5 a5 5 0 0 1 0 7"/><path d="M18.5 5.5 a9 9 0 0 1 0 13"/>
+    </svg>
+  </button>
+</div>
 
 <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Photo viewer">
   <figure>
@@ -173,420 +80,15 @@
 <div class="endnote" id="endnote">
   <p class="tag">How this trail grows</p>
   <p>Drop a photo into blob storage under <code>pets/&lt;dog&gt;/gallery/</code> named like
-     <code>2025-04_beach-day.jpg</code> and it appears at that season automatically.
-     A new folder with a <code>headshot.jpg</code> and <code>meta.json</code> is a new family member.
+     <code>2025-04_hike.jpg</code> and it appears at that season automatically.
+     A new folder with a <code>headshot.jpg</code> and <code>meta.json</code> is a new family member;
+     hidden memories live in <code>_trail/lore.json</code>.
      Albums: {% for p in journey.pets %}<a href="/pets/{{ p.slug }}">{{ p.name }}</a>{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
 </div>
 
 <div id="spacer" aria-hidden="true"></div>
 
 <script>window.JOURNEY = {{ journey | tojson }};</script>
-<script>
-(() => {
-  const J = window.JOURNEY;
-  const clamp = (v,a,b)=>Math.min(b,Math.max(a,v));
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const SEASON_GROUND = {spring:'#A9BD84', summer:'#94AC6E', autumn:'#B3A15F', winter:'#D6D9CE'};
-  const SEASON_OF = m => { const mm = m%12+1; return (mm===12||mm<=2)?'winter':(mm<=5)?'spring':(mm<=8)?'summer':'autumn'; };
-  const ymKey = s => { if(!s) return null; const y=+s.slice(0,4), m=+s.slice(5,7); return (y && m) ? y*12+m-1 : null; };
-  const monthLabel = mk => MONTHS[mk%12] + ' ' + Math.floor(mk/12);
-  const yearOf = s => s ? s.slice(0,4) : '';
-  const petBy = {}; J.pets.forEach(p => petBy[p.slug] = p);
-
-  function ageStr(bornYM, atMk){
-    const b = ymKey(bornYM); if (b == null || atMk == null) return '';
-    const d = atMk - b; if (d < 0) return '';
-    if (d < 12) return d + (d === 1 ? ' month old' : ' months old');
-    const y = Math.floor(d/12); return y + (y === 1 ? ' year old' : ' years old');
-  }
-
-  // deterministic pseudo-random for stable scenery
-  let seed = 7;
-  const rnd = () => (seed = (seed*1103515245 + 12345) % 2147483648) / 2147483648;
-
-  // ---------- layout: month-aware spacing between events ----------
-  const W = 2200, CX = W/2, AMP = 470;
-  const evs = J.events;
-  const pts = [];
-  let y = 0; // filled below: we lay out from the START and then flip
-  const gaps = [];
-  for (let i = 1; i < evs.length; i++){
-    const dm = Math.max(0, evs[i].month - evs[i-1].month);
-    let g = clamp(dm*26, 260, 820);
-    if (evs[i].type === 'camp') g += 140;
-    if (evs[i].type === 'passing' || evs[i].type === 'arrival') g += 90;
-    gaps.push(g);
-  }
-  const PAD_TOP = 900, PAD_BOT = 700;
-  const total = gaps.reduce((a,b)=>a+b, 0);
-  const LEN = PAD_TOP + total + PAD_BOT;
-  // start (oldest) sits at the BOTTOM of the map; the journey climbs north
-  y = LEN - PAD_BOT;
-  let side = 1;
-  evs.forEach((e, i) => {
-    if (i > 0) y -= gaps[i-1];
-    let x = CX;
-    if (e.type !== 'union' && e.type !== 'today'){
-      x = CX + side * AMP * (0.72 + 0.28 * ((i*37) % 10) / 10);
-      side = -side;
-    }
-    pts.push({x, y, e});
-  });
-
-  // ---------- the map SVG: seasons, trail, scenery, shadows ----------
-  const map = document.getElementById('map');
-  const NS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('width', W); svg.setAttribute('height', LEN);
-  svg.setAttribute('viewBox', `0 0 ${W} ${LEN}`);
-  map.appendChild(svg);
-
-  // month->y interpolation anchors (event months ascending; y descending)
-  const anchors = pts.map(p => ({m: p.e.month, y: p.y}));
-  function monthAtY(yy){
-    if (yy >= anchors[0].y) return anchors[0].m;
-    for (let i = 1; i < anchors.length; i++){
-      if (yy >= anchors[i].y){
-        const a = anchors[i-1], b = anchors[i];
-        return a.m + (b.m - a.m) * ((a.y - yy) / Math.max(1, a.y - b.y));
-      }
-    }
-    return anchors[anchors.length-1].m;
-  }
-
-  // season ground: sample in DISTANCE space so time-compressed stretches
-  // become broad calm bands instead of stripes
-  const defs = document.createElementNS(NS, 'defs');
-  const grad = document.createElementNS(NS, 'linearGradient');
-  grad.id = 'seasons';
-  grad.setAttribute('gradientUnits', 'userSpaceOnUse');
-  grad.setAttribute('x1','0'); grad.setAttribute('y1','0');
-  grad.setAttribute('x2','0'); grad.setAttribute('y2', LEN);
-  const stops = [];
-  let prevColor = null;
-  for (let yy = 0; yy <= LEN; yy += 420){
-    const c = SEASON_GROUND[SEASON_OF(Math.round(monthAtY(yy)))];
-    if (c !== prevColor){
-      if (prevColor) stops.push({off: Math.max(0, yy/LEN - 0.02), color: prevColor});
-      stops.push({off: yy/LEN, color: c});
-      prevColor = c;
-    }
-  }
-  stops.push({off: 1, color: prevColor || SEASON_GROUND.summer});
-  stops.forEach(s => {
-    const st = document.createElementNS(NS, 'stop');
-    st.setAttribute('offset', (s.off*100).toFixed(2) + '%');
-    st.setAttribute('stop-color', s.color);
-    grad.appendChild(st);
-  });
-  defs.appendChild(grad); svg.appendChild(defs);
-
-  const ground = document.createElementNS(NS, 'rect');
-  ground.setAttribute('x', -2400); ground.setAttribute('y', -800);
-  ground.setAttribute('width', W + 4800); ground.setAttribute('height', LEN + 1600);
-  ground.setAttribute('fill', 'url(#seasons)');
-  svg.appendChild(ground);
-
-  // trail path: smooth serpentine with vertical tangents at every event
-  let dStr = `M ${pts[0].x} ${pts[0].y + 700} L ${pts[0].x} ${pts[0].y}`;
-  for (let i = 1; i < pts.length; i++){
-    const a = pts[i-1], b = pts[i], g = (a.y - b.y) * 0.5;
-    dStr += ` C ${a.x} ${a.y - g}, ${b.x} ${b.y + g}, ${b.x} ${b.y}`;
-  }
-  dStr += ` L ${pts[pts.length-1].x} ${pts[pts.length-1].y - 90}`;
-
-  const band = document.createElementNS(NS, 'path');
-  band.setAttribute('d', dStr); band.setAttribute('fill','none');
-  band.setAttribute('stroke','#5C5137'); band.setAttribute('stroke-width','120');
-  band.setAttribute('stroke-linecap','round'); band.setAttribute('opacity','0.12');
-  svg.appendChild(band);
-  const dots = document.createElementNS(NS, 'path');
-  dots.setAttribute('d', dStr); dots.setAttribute('fill','none');
-  dots.setAttribute('stroke','#6B5C40'); dots.setAttribute('stroke-width','13');
-  dots.setAttribute('stroke-linecap','round'); dots.setAttribute('stroke-dasharray','0.01 42');
-  svg.appendChild(dots);
-
-  // scenery: flora chosen by the season at each point
-  const flora = document.createElementNS(NS, 'g');
-  function tree(x, y, s, tone){
-    return `<g transform="translate(${x},${y}) scale(${s})">
-      <ellipse cx="0" cy="-14" rx="34" ry="26" fill="${tone}"/>
-      <ellipse cx="-20" cy="-2" rx="22" ry="17" fill="${tone}" opacity=".85"/>
-      <ellipse cx="21" cy="-4" rx="19" ry="15" fill="${tone}" opacity=".9"/>
-      <rect x="-4" y="8" width="8" height="18" rx="3" fill="#8F7B57"/></g>`;
-  }
-  let floraHtml = '';
-  const guideProbe = document.createElementNS(NS, 'path');
-  guideProbe.setAttribute('d', dStr); guideProbe.setAttribute('fill','none');
-  svg.appendChild(guideProbe);
-  const PLEN = guideProbe.getTotalLength();
-  const SAMPLES = 500, lut = [];
-  for (let i = 0; i <= SAMPLES; i++){
-    const pt = guideProbe.getPointAtLength(PLEN * i / SAMPLES);
-    lut.push({d: PLEN*i/SAMPLES, x: pt.x, y: pt.y});
-  }
-  function atDist(dist){
-    dist = clamp(dist, 0, PLEN);
-    let lo = 0, hi = SAMPLES;
-    while (hi - lo > 1){ const mid = (lo+hi)>>1; (lut[mid].d <= dist) ? lo = mid : hi = mid; }
-    const a = lut[lo], b = lut[hi], t = (dist - a.d) / Math.max(1e-6, b.d - a.d);
-    return {x: a.x + (b.x-a.x)*t, y: a.y + (b.y-a.y)*t};
-  }
-  function distAtY(ty){ // y decreases along the path
-    let lo = 0, hi = SAMPLES;
-    while (hi - lo > 1){ const mid = (lo+hi)>>1; (lut[mid].y >= ty) ? lo = mid : hi = mid; }
-    return lut[hi].d;
-  }
-  for (let d = 200; d < PLEN - 200; d += 260 + rnd()*160){
-    const p = atDist(d);
-    const side = rnd() > 0.5 ? 1 : -1;
-    const off = 320 + rnd()*520;
-    const x = clamp(p.x + side*off, -1600, W+1600), yy = p.y + (rnd()-0.5)*140;
-    const season = SEASON_OF(Math.round(monthAtY(yy)));
-    if (season === 'winter'){
-      floraHtml += rnd() > 0.45
-        ? `<ellipse cx="${x}" cy="${yy}" rx="${60+rnd()*70}" ry="${18+rnd()*14}" fill="#F4F5EE" opacity=".8"/>`
-        : `<g transform="translate(${x},${yy})"><rect x="-3" y="-26" width="6" height="30" rx="2" fill="#8F7B57"/><path d="M0-24 L-16-6 M0-24 L15-8 M0-16 L-11 0 M0-16 L12-2" stroke="#8F7B57" stroke-width="4" stroke-linecap="round" fill="none"/></g>`;
-    } else if (season === 'spring'){
-      floraHtml += `<g transform="translate(${x},${yy})"><circle cx="0" cy="-14" r="8" fill="${rnd()>0.5?'#D98BA4':'#EFE3EE'}"/><rect x="-2" y="-8" width="4" height="16" rx="2" fill="#7E9159"/></g>`;
-      if (rnd() > 0.6) floraHtml += tree(x+90, yy+30, 0.8+rnd()*0.5, '#8FA968');
-    } else if (season === 'summer'){
-      floraHtml += tree(x, yy, 0.85+rnd()*0.7, rnd()>0.5 ? '#71884D' : '#7E9159');
-    } else {
-      floraHtml += rnd() > 0.4
-        ? tree(x, yy, 0.8+rnd()*0.6, '#B98A4A')
-        : `<g fill="#C08A3E" opacity=".85"><circle cx="${x}" cy="${yy}" r="6"/><circle cx="${x+18}" cy="${yy+9}" r="4.5"/><circle cx="${x-14}" cy="${yy+12}" r="5"/></g>`;
-    }
-  }
-  flora.innerHTML = floraHtml;
-  svg.appendChild(flora);
-
-  const shadows = document.createElementNS(NS, 'g');
-  svg.appendChild(shadows);
-  function addShadow(x, y, rx){
-    // centred slightly behind the base so the ellipse never paints over the
-    // billboard's lower text (nearer map-y renders in front of the board)
-    const el = document.createElementNS(NS, 'ellipse');
-    el.setAttribute('cx', x); el.setAttribute('cy', y - (rx*0.32 + 10));
-    el.setAttribute('rx', rx); el.setAttribute('ry', rx*0.32);
-    el.setAttribute('fill', 'rgba(45,52,32,.16)');
-    shadows.appendChild(el);
-  }
-
-  // ---------- billboards ----------
-  const bbs = [];
-  function bb(cls, x, y, html, shadowR){
-    const el = document.createElement('div');
-    el.className = 'bb ' + cls;
-    el.style.left = x + 'px'; el.style.top = y + 'px';
-    el.innerHTML = html;
-    map.appendChild(el);
-    if (shadowR) addShadow(x, y, shadowR);
-    bbs.push({el, x, y});
-    return el;
-  }
-
-  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
-
-  pts.forEach(({x, y, e}) => {
-    if (e.type === 'union'){
-      const [a, b] = e.pets.map(s => petBy[s]);
-      bb('bb-union', x, y, `
-        <span class="date-chip">${monthLabel(e.month)} &middot; The Union</span>
-        <svg class="arc" width="420" height="86" viewBox="0 0 420 86">
-          <path d="M 60 84 C 130 6, 200 2, 210 2" fill="none" stroke="${a.color}" stroke-width="5" stroke-linecap="round"/>
-          <path d="M 360 84 C 290 6, 220 2, 210 2" fill="none" stroke="${b.color}" stroke-width="5" stroke-linecap="round"/>
-          <circle cx="210" cy="4" r="9" fill="#C9A227"/>
-        </svg>
-        <div class="ports">
-          <div class="p" style="--acc:${a.color}"><img src="${a.headshot_thumb}" alt="${esc(a.name)}"><div class="nm">${esc(a.name)}</div></div>
-          <div class="p" style="--acc:${b.color}"><img src="${b.headshot_thumb}" alt="${esc(b.name)}"><div class="nm">${esc(b.name)}</div></div>
-        </div>
-        <p class="sub">Two paths joined, and the trail began.</p>`, 210);
-    }
-    else if (e.type === 'arrival'){
-      const p = petBy[e.pet];
-      const age = ageStr(p.born, e.month);
-      bb('bb-arrival', x, y, `
-        <span class="date-chip" style="--acc:${p.color}">${monthLabel(e.month)} &middot; ${esc(p.name)} joins</span>
-        <div style="margin-top:10px"><img src="${p.headshot_thumb}" alt="${esc(p.name)}" style="--acc:${p.color}; border-color:${p.color}"></div>
-        <div class="nm">${esc(p.name)}</div>
-        ${age ? `<p class="age">${age} when she joined the pack</p>` : ''}`, 140);
-    }
-    else if (e.type === 'camp'){
-      const feat = e.photos[0];
-      const featPet = petBy[feat.dog];
-      const el = bb('bb-camp', x, y, `
-        <span class="date-chip" style="--acc:${featPet ? featPet.color : 'var(--gold)'}">${e.label}</span>
-        <div class="frame"><img src="${feat.thumb}" alt="${esc(e.label)}" loading="lazy">
-          <div class="count">${e.photos.length === 1 ? '1 photo' : e.photos.length + ' photos'}</div></div>
-        <div class="post"></div>
-        <div class="fan"></div>`, 130);
-      el.tabIndex = 0;
-      el.dataset.camp = '1';
-      const fan = el.querySelector('.fan');
-      const shown = e.photos.slice(0, 8);
-      shown.forEach((ph, i) => {
-        const pet = petBy[ph.dog];
-        const fp = document.createElement('div');
-        fp.className = 'fp';
-        const n = shown.length, spread = Math.min(150, 44 + n*14);
-        const ang = (n === 1) ? 0 : (-spread/2 + spread * i/(n-1));
-        const rad = 205;
-        fp.style.setProperty('--fx', (Math.sin(ang*Math.PI/180)*rad).toFixed(0) + 'px');
-        fp.style.setProperty('--fy', (-70 - Math.cos(ang*Math.PI/180)*rad*0.62).toFixed(0) + 'px');
-        fp.style.setProperty('--acc', pet ? pet.color : 'var(--gold)');
-        fp.style.transitionDelay = (i*0.04) + 's';
-        fp.innerHTML = `<img src="${ph.thumb}" alt="" loading="lazy">`;
-        fp.addEventListener('click', ev => { ev.stopPropagation(); openLightbox(e.photos, e.photos.indexOf(ph)); });
-        fan.appendChild(fp);
-      });
-      el.addEventListener('click', () => toggleCamp(el));
-      el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleCamp(el); }});
-    }
-    else if (e.type === 'passing'){
-      const p = petBy[e.pet];
-      bb('bb-lantern', x, y, `
-        <div class="halo"></div>
-        <img src="${p.headshot_thumb}" alt="${esc(p.name)}">
-        <div class="nm">${esc(p.name)}</div>
-        <div class="yrs">${yearOf(p.born)} &ndash; ${yearOf(p.passed)}</div>
-        <p class="line">She walks with us in every season.</p>`, 130);
-    }
-    else if (e.type === 'today'){
-      const living = J.pets.filter(p => !p.passed);
-      const remembered = J.pets.filter(p => p.passed);
-      bb('bb-today', x, y, `
-        ${remembered.length ? '<div class="star">&#10022;</div>' : ''}
-        <div class="row">${living.map(p =>
-          `<img src="${p.headshot_thumb}" alt="${esc(p.name)}" style="--acc:${p.color}; border-color:${p.color}">`).join('')}</div>
-        <h2>&hellip;and the trail goes on.</h2>
-        <p>${living.map(p => p.name).join(', ').replace(/, ([^,]*)$/, ' and $1')} walk it today${remembered.length ? ' — ' + remembered.map(p => p.name).join(' and ') + ' lights the way' : ''}.</p>`, 210);
-    }
-  });
-
-  function toggleCamp(el){
-    const wasOpen = el.classList.contains('open');
-    document.querySelectorAll('.bb-camp.open').forEach(c => c.classList.remove('open'));
-    map.classList.remove('dimmed');
-    if (!wasOpen){ el.classList.add('open'); map.classList.add('dimmed'); }
-  }
-  document.addEventListener('keydown', ev => {
-    if (ev.key === 'Escape'){
-      document.querySelectorAll('.bb-camp.open').forEach(c => c.classList.remove('open'));
-      map.classList.remove('dimmed');
-      closeLightbox();
-    }
-  });
-
-  // ---------- lightbox ----------
-  const lb = document.getElementById('lightbox');
-  const lbImg = document.getElementById('lb-img');
-  const lbWho = document.getElementById('lb-who');
-  const lbDate = document.getElementById('lb-date');
-  const lbCap = document.getElementById('lb-cap');
-  let lbSet = [], lbIdx = 0;
-  function openLightbox(photos, idx){
-    lbSet = photos; lbIdx = idx; renderLb();
-    lb.classList.add('open');
-  }
-  function renderLb(){
-    const ph = lbSet[lbIdx]; if (!ph) return;
-    const pet = petBy[ph.dog];
-    lbImg.src = ph.large;
-    lbWho.textContent = pet ? pet.name : ph.dog;
-    lbWho.style.setProperty('--acc', pet ? pet.color : 'var(--gold)');
-    const mk = ymKey(ph.taken);
-    const age = pet ? ageStr(pet.born, mk) : '';
-    lbDate.textContent = (mk != null ? monthLabel(mk) : '') + (age ? ' · ' + age : '');
-    lbCap.textContent = ph.caption || '';
-    lbCap.style.display = ph.caption ? 'block' : 'none';
-  }
-  function closeLightbox(){ lb.classList.remove('open'); lbImg.src = ''; }
-  document.getElementById('lb-close').addEventListener('click', closeLightbox);
-  lb.addEventListener('click', ev => { if (ev.target === lb) closeLightbox(); });
-  document.getElementById('lb-prev').addEventListener('click', ev => { ev.stopPropagation(); lbIdx = (lbIdx-1+lbSet.length)%lbSet.length; renderLb(); });
-  document.getElementById('lb-next').addEventListener('click', ev => { ev.stopPropagation(); lbIdx = (lbIdx+1)%lbSet.length; renderLb(); });
-  document.addEventListener('keydown', ev => {
-    if (!lb.classList.contains('open')) return;
-    if (ev.key === 'ArrowLeft'){ lbIdx = (lbIdx-1+lbSet.length)%lbSet.length; renderLb(); }
-    if (ev.key === 'ArrowRight'){ lbIdx = (lbIdx+1)%lbSet.length; renderLb(); }
-  });
-
-  // ---------- minimap ----------
-  const mmBox = document.getElementById('minimap');
-  const MMW = 74, MMH = Math.min(innerHeight*0.56, 460);
-  const mmX = x => 10 + (x / W) * (MMW - 20);
-  const mmY = yy => 8 + (yy / LEN) * (MMH - 16);
-  let mmPath = `M ${mmX(pts[0].x)} ${mmY(pts[0].y)}`;
-  for (let i = 1; i <= SAMPLES; i += 4) mmPath += ` L ${mmX(lut[i].x).toFixed(1)} ${mmY(lut[i].y).toFixed(1)}`;
-  let marks = '';
-  pts.forEach(({x, y, e}) => {
-    const cx = mmX(x), cy = mmY(y);
-    if (e.type === 'union') marks += `<circle cx="${cx}" cy="${cy}" r="5" fill="none" stroke="#C9A227" stroke-width="2.5"/>`;
-    else if (e.type === 'arrival') marks += `<circle cx="${cx}" cy="${cy}" r="4" fill="${petBy[e.pet].color}"/>`;
-    else if (e.type === 'passing') marks += `<text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="12" fill="#C9A227">&#10022;</text>`;
-    else if (e.type === 'camp') marks += `<circle cx="${cx}" cy="${cy}" r="2.5" fill="#6B5C40"/>`;
-  });
-  mmBox.innerHTML = `<svg width="${MMW}" height="${MMH}" viewBox="0 0 ${MMW} ${MMH}">
-    <rect x="0" y="0" width="${MMW}" height="${MMH}" rx="12" fill="rgba(238,240,224,.82)" stroke="#D8D6BC"/>
-    <path d="${mmPath}" fill="none" stroke="#8A795B" stroke-width="2" opacity=".7"/>
-    ${marks}
-    <circle id="mmCam" cx="${mmX(pts[0].x)}" cy="${mmY(pts[0].y)}" r="5.5" fill="#39422E" stroke="#F2F0E2" stroke-width="1.5"/>
-  </svg>`;
-  const mmCam = document.getElementById('mmCam');
-  mmBox.addEventListener('click', ev => {
-    const r = mmBox.getBoundingClientRect();
-    const ty = clamp((ev.clientY - r.top - 8) / (MMH - 16), 0, 1) * LEN;
-    const dist = distAtY(ty);
-    const doc = document.documentElement;
-    scrollTo({top: (dist / PLEN) * (doc.scrollHeight - innerHeight), behavior: reduced ? 'auto' : 'smooth'});
-  });
-
-  // ---------- camera ----------
-  const intro = document.getElementById('intro');
-  const meterYr = document.getElementById('meterYr');
-  const endnote = document.getElementById('endnote');
-  const zoom = document.getElementById('zoom');
-  const spacer = document.getElementById('spacer');
-  spacer.style.height = Math.round(PLEN * 1.12 + innerHeight) + 'px';
-
-  function update(){
-    const doc = document.documentElement;
-    const prog = clamp(scrollY / (doc.scrollHeight - innerHeight), 0, 1);
-    const dist = prog * PLEN;
-    const p = atDist(dist);
-    const ahead = atDist(dist + 480);
-    const camX = p.x + (ahead.x - p.x) * 0.45;
-    const camY = p.y;
-
-    const s = clamp(innerWidth / 1150, 0.52, 1);
-    zoom.style.transform = `scale(${s.toFixed(3)})`;
-    map.style.transform = `translate3d(${(-camX).toFixed(1)}px, ${(-camY).toFixed(1)}px, 0)`;
-
-    const arrived = prog > 0.018;
-    bbs.forEach(b => {
-      const on = arrived && b.y > camY - 1500 && b.y < camY + 800;
-      if (on !== b.el.classList.contains('on')) b.el.classList.toggle('on', on);
-    });
-
-    intro.style.opacity = 1 - clamp(prog/0.05, 0, 1);
-    intro.style.visibility = prog > 0.055 ? 'hidden' : 'visible';
-
-    const mk = Math.round(monthAtY(camY));
-    meterYr.textContent = prog > 0.985 ? 'Today' : monthLabel(mk);
-
-    mmCam.setAttribute('cx', mmX(p.x)); mmCam.setAttribute('cy', mmY(p.y));
-    endnote.classList.toggle('on', prog > 0.965);
-  }
-
-  let tick = false;
-  const onScroll = () => { if (!tick){ tick = true; requestAnimationFrame(() => { update(); tick = false; }); } };
-  addEventListener('scroll', onScroll, {passive:true});
-  addEventListener('resize', onScroll);
-  update();
-})();
-</script>
+<script src="{{ url_for('static', filename='js/journey.js') }}"></script>
 </body>
 </html>
