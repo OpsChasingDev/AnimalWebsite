@@ -77,17 +77,18 @@
   /* ---------- map + ground ---------- */
   const map = document.getElementById('map');
   const NS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('width', W); svg.setAttribute('height', LEN);
-  svg.setAttribute('viewBox', `0 0 ${W} ${LEN}`);
-  map.appendChild(svg);
 
-  const defs = document.createElementNS(NS, 'defs');
-  const grad = document.createElementNS(NS, 'linearGradient');
-  grad.id = 'seasons';
-  grad.setAttribute('gradientUnits', 'userSpaceOnUse');
-  grad.setAttribute('x1','0'); grad.setAttribute('y1','0');
-  grad.setAttribute('x2','0'); grad.setAttribute('y2', LEN);
+  /* Lite tier for touch devices: iOS Safari has hard per-tab GPU limits and
+     rasterizes 3D-transformed content into full (untiled) backing stores. */
+  const LITE = matchMedia('(pointer: coarse)').matches
+    || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (LITE) document.body.classList.add('lite');
+
+  /* The ground is sliced into band SVGs, culled independently, so no single
+     giant raster surface ever exists (the previous one crashed iOS Safari). */
+  const BANDH = 1600, BAND0 = -500;
+  const NB = Math.ceil((LEN + 1000) / BANDH);
+
   let prevColor = null;
   const stops = [];
   for (let yy = 0; yy <= LEN; yy += 420){
@@ -99,19 +100,37 @@
     }
   }
   stops.push({off: 1, color: prevColor || SEASON_GROUND.summer});
-  stops.forEach(s => {
-    const st = document.createElementNS(NS, 'stop');
-    st.setAttribute('offset', (s.off * 100).toFixed(2) + '%');
-    st.setAttribute('stop-color', s.color);
-    grad.appendChild(st);
-  });
-  defs.appendChild(grad); svg.appendChild(defs);
 
-  const ground = document.createElementNS(NS, 'rect');
-  ground.setAttribute('x', -1100); ground.setAttribute('y', -500);
-  ground.setAttribute('width', W + 2200); ground.setAttribute('height', LEN + 1000);
-  ground.setAttribute('fill', 'url(#seasons)');
-  svg.appendChild(ground);
+  const bands = [];
+  for (let bi = 0; bi < NB; bi++){
+    const y0 = BAND0 + bi * BANDH;
+    const over = bi === 0 ? 0 : 2;    // paint over the previous band's seam
+    const bsvg = document.createElementNS(NS, 'svg');
+    bsvg.setAttribute('width', W + 2200); bsvg.setAttribute('height', BANDH + over);
+    bsvg.setAttribute('viewBox', `-1100 ${y0 - over} ${W + 2200} ${BANDH + over}`);
+    bsvg.style.left = '-1100px'; bsvg.style.top = (y0 - over) + 'px';
+    const bdefs = document.createElementNS(NS, 'defs');
+    const bgrad = document.createElementNS(NS, 'linearGradient');
+    bgrad.id = 'seasons' + bi;
+    bgrad.setAttribute('gradientUnits', 'userSpaceOnUse');
+    bgrad.setAttribute('x1','0'); bgrad.setAttribute('y1','0');
+    bgrad.setAttribute('x2','0'); bgrad.setAttribute('y2', LEN);
+    stops.forEach(s => {
+      const st = document.createElementNS(NS, 'stop');
+      st.setAttribute('offset', (s.off * 100).toFixed(2) + '%');
+      st.setAttribute('stop-color', s.color);
+      bgrad.appendChild(st);
+    });
+    bdefs.appendChild(bgrad); bsvg.appendChild(bdefs);
+    const bg = document.createElementNS(NS, 'rect');
+    bg.setAttribute('x', -1100); bg.setAttribute('y', y0 - over);
+    bg.setAttribute('width', W + 2200); bg.setAttribute('height', BANDH + over);
+    bg.setAttribute('fill', `url(#seasons${bi})`);
+    bsvg.appendChild(bg);
+    map.appendChild(bsvg);
+    bands.push({svg: bsvg, y0});
+  }
+  const bandFor = yy => clamp(Math.floor((yy - BAND0) / BANDH), 0, NB - 1);
 
   /* trail geometry */
   let dStr = `M ${pts[0].x} ${pts[0].y + 700} L ${pts[0].x} ${pts[0].y}`;
@@ -123,7 +142,7 @@
 
   const guideProbe = document.createElementNS(NS, 'path');
   guideProbe.setAttribute('d', dStr); guideProbe.setAttribute('fill', 'none');
-  svg.appendChild(guideProbe);
+  bands[0].svg.appendChild(guideProbe);
   const PLEN = guideProbe.getTotalLength();
   const SAMPLES = 500, lut = [];
   for (let i = 0; i <= SAMPLES; i++){
@@ -187,28 +206,42 @@
       </g>`;
   }
 
-  const band = document.createElementNS(NS, 'path');
-  band.setAttribute('d', dStr); band.setAttribute('fill', 'none');
-  band.setAttribute('stroke', '#5C5137'); band.setAttribute('stroke-width', '120');
-  band.setAttribute('stroke-linecap', 'round'); band.setAttribute('opacity', '0.12');
-  svg.appendChild(band);
-  svg.appendChild(creekGroup);
-  if (pondHTML){ const g = document.createElementNS(NS, 'g'); g.innerHTML = pondHTML; svg.appendChild(g); }
-  const dots = document.createElementNS(NS, 'path');
-  dots.setAttribute('d', dStr); dots.setAttribute('fill', 'none');
-  dots.setAttribute('stroke', '#6B5C40'); dots.setAttribute('stroke-width', '13');
-  dots.setAttribute('stroke-linecap', 'round'); dots.setAttribute('stroke-dasharray', '0.01 42');
-  svg.appendChild(dots);
+  bands.forEach(b => {
+    const bandPath = document.createElementNS(NS, 'path');
+    bandPath.setAttribute('d', dStr); bandPath.setAttribute('fill', 'none');
+    bandPath.setAttribute('stroke', '#5C5137'); bandPath.setAttribute('stroke-width', '120');
+    bandPath.setAttribute('stroke-linecap', 'round'); bandPath.setAttribute('opacity', '0.12');
+    b.svg.appendChild(bandPath);
+    if (creekY + 160 > b.y0 && creekY - 160 < b.y0 + BANDH){
+      const g = document.createElementNS(NS, 'g');
+      g.innerHTML = creekGroup.innerHTML;
+      b.svg.appendChild(g);
+    }
+    if (pondHTML && pondPos && pondPos.y + 170 > b.y0 && pondPos.y - 170 < b.y0 + BANDH){
+      const g = document.createElementNS(NS, 'g');
+      g.innerHTML = pondHTML;
+      b.svg.appendChild(g);
+    }
+    const dotsPath = document.createElementNS(NS, 'path');
+    dotsPath.setAttribute('d', dStr); dotsPath.setAttribute('fill', 'none');
+    dotsPath.setAttribute('stroke', '#6B5C40'); dotsPath.setAttribute('stroke-width', '13');
+    dotsPath.setAttribute('stroke-linecap', 'round'); dotsPath.setAttribute('stroke-dasharray', '0.01 42');
+    b.svg.appendChild(dotsPath);
+    b.detail = document.createElementNS(NS, 'g');
+    b.svg.appendChild(b.detail);
+    b.shadows = document.createElementNS(NS, 'g');
+    b.svg.appendChild(b.shadows);
+  });
 
   /* flat ground details: scree, boulders-lite, flowers, leaf litter, logs */
-  const detail = document.createElementNS(NS, 'g');
-  let dh = '';
+  const bandDh = new Array(NB).fill('');
   for (let d = 250; d < PLEN - 250; d += 210 + rnd() * 150){
     const p = atDist(d);
     const off = (rnd() > 0.5 ? 1 : -1) * (300 + rnd() * 850);
     const x = clamp(p.x + off, -950, W + 950), yy = p.y + (rnd() - 0.5) * 160;
     const season = SEASON_OF(Math.round(monthAtY(yy)));
     const r = rnd();
+    let dh = '';
     if (r < 0.24){       // scree / pebbles
       dh += `<g fill="#9C9C8C" opacity=".7"><ellipse cx="${x}" cy="${yy}" rx="${8+rnd()*10}" ry="${4+rnd()*5}"/>
              <ellipse cx="${x+20}" cy="${yy+8}" rx="${5+rnd()*7}" ry="${3+rnd()*4}"/></g>`;
@@ -230,12 +263,12 @@
              <ellipse cx="${x+17}" cy="${yy+7}" rx="5" ry="3" transform="rotate(-20 ${x+17} ${yy+7})"/>
              <ellipse cx="${x-12}" cy="${yy+11}" rx="5" ry="3" transform="rotate(60 ${x-12} ${yy+11})"/></g>`;
     }
+    bandDh[bandFor(yy)] += dh;
   }
-  detail.innerHTML = dh;
-  svg.appendChild(detail);
+  bands.forEach((b, i) => { b.detail.innerHTML = bandDh[i]; });
 
   /* cloud shadows drifting over the ground */
-  if (!reduced){
+  if (!reduced && !LITE){
     for (let i = 0; i < 2; i++){
       const c = document.createElement('div');
       c.className = 'cloudshadow';
@@ -247,14 +280,12 @@
     }
   }
 
-  const shadows = document.createElementNS(NS, 'g');
-  svg.appendChild(shadows);
   function addShadow(x, y, rx){
     const el = document.createElementNS(NS, 'ellipse');
     el.setAttribute('cx', x); el.setAttribute('cy', y - (rx * 0.32 + 10));
     el.setAttribute('rx', rx); el.setAttribute('ry', rx * 0.32);
     el.setAttribute('fill', 'rgba(45,52,32,.16)');
-    shadows.appendChild(el);
+    bands[bandFor(y)].shadows.appendChild(el);
   }
 
   /* ---------- standing props (forest, rocks, home, holidays, lore…) ---------- */
@@ -332,8 +363,8 @@
     const [tone, dark] = SEASON_PINE[season];
     const h = 100 + rnd() * 130;
     const isPine = rnd() < 0.74;
-    const leafTone = season === 'autumn' ? (rnd() > 0.5 ? '#B9823E' : '#A8944E')
-                   : season === 'winter' ? '#9AA88E' : (rnd() > 0.5 ? '#6E8F4E' : '#7C9E58');
+    const leafTone = season === 'autumn' ? (rnd() > 0.5 ? '#A8722E' : '#96823C')
+                   : season === 'winter' ? '#87947A' : (rnd() > 0.5 ? '#54763C' : '#5F8244');
     groveItems.push({x, y: yy, svg: isPine ? pineSVG(h, tone, dark) : broadleafSVG(h * 0.8, leafTone), sh: h * 0.3});
     placed++;
   }
@@ -400,7 +431,7 @@
           <ellipse cx="0" cy="0" rx="20" ry="15" fill="#C97A2E"/>
           <ellipse cx="0" cy="0" rx="9" ry="15" fill="none" stroke="#B36622" stroke-width="3"/>
           <rect x="-3" y="-21" width="6" height="9" rx="2" fill="#6E8043"/></g>`;
-        detail.appendChild(g);
+        bands[bandFor(yy)].detail.appendChild(g);
       } else if (kind === 'lights'){
         prop(x, yy, pineSVG(150, '#4A5B48', '#3C4B3A', true), {shadow: 42});
       } else {
@@ -408,7 +439,7 @@
         g.innerHTML = `<g transform="translate(${x},${yy})" fill="#D97795">
           <path d="M0 6 C-8 -4 -20 2 0 16 C20 2 8 -4 0 6 Z"/>
           <path d="M26 12 C20 5 12 9 26 19 C40 9 32 5 26 12 Z" opacity=".8"/></g>`;
-        detail.appendChild(g);
+        bands[bandFor(yy)].detail.appendChild(g);
       }
     });
   }
@@ -525,7 +556,7 @@
 
   /* butterflies near flower patches */
   if (!reduced){
-    [0.24, 0.68].forEach((f, i) => {
+    (LITE ? [0.24] : [0.24, 0.68]).forEach((f, i) => {
       const p = atDist(PLEN * f);
       const x = p.x + (i ? -1 : 1) * 330;
       prop(x, p.y, `
@@ -809,7 +840,7 @@
     document.querySelectorAll('.firefly').forEach(f => f.remove());
     if (mode === 'night'){
       if (weatherSeason === 'summer' || weatherSeason === 'spring'){
-        for (let i = 0; i < 9; i++){
+        for (let i = 0; i < (LITE ? 5 : 9); i++){
           const f = document.createElement('div');
           f.className = 'firefly';
           f.style.cssText = `left:${(rnd()*96+2).toFixed(1)}vw; top:${(rnd()*46+46).toFixed(1)}vh;
@@ -822,7 +853,8 @@
       return;
     }
     if (!weatherSeason) return;
-    const density = {winter: 14, autumn: 12, spring: 10, summer: 6}[weatherSeason];
+    let density = {winter: 14, autumn: 12, spring: 10, summer: 6}[weatherSeason];
+    if (LITE) density = Math.min(density, 6);
     spawnParticles(weatherSeason, density);
   }
   function spawnParticles(season, n){
@@ -981,6 +1013,12 @@
       if (vis === !pr.hidden) return;
       pr.hidden = !vis;
       pr.el.style.display = vis ? '' : 'none';
+    });
+    bands.forEach(b => {
+      const vis = b.y0 < camY + 1700 && b.y0 + BANDH > camY - 2400;
+      if (vis === !b.hidden) return;
+      b.hidden = !vis;
+      b.svg.style.display = vis ? '' : 'none';
     });
 
     if (deer){

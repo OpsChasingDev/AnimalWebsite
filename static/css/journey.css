@@ -189,6 +189,10 @@ body.t-night .xlights circle{filter:brightness(1.8) drop-shadow(0 0 4px currentC
 @keyframes fall{from{transform:translate(0,-4vh) rotate(0deg)}to{transform:translate(var(--drift), 108vh) rotate(var(--spin));}}
 #skytint{position:fixed; inset:0; z-index:14; pointer-events:none; transition:background 2s; mix-blend-mode:multiply;}
 body.t-day #skytint{display:none;}
+/* touch devices: blend modes cost a full-screen pass per frame on mobile GPUs */
+body.lite #skytint{mix-blend-mode:normal;}
+body.lite.t-dusk #skytint{background:linear-gradient(180deg, rgba(214,150,84,.2), rgba(214,160,100,.12) 55%, rgba(200,150,90,.14));}
+body.lite.t-night #skytint{background:linear-gradient(180deg, rgba(16,24,52,.5), rgba(16,24,52,.36) 55%, rgba(16,24,52,.42));}
 body.t-dusk #skytint{background:linear-gradient(180deg, rgba(255,196,140,.55), rgba(244,214,170,.82) 55%, rgba(238,220,180,.85));}
 body.t-night #skytint{background:linear-gradient(180deg, rgba(88,100,140,.85), rgba(104,114,148,.8) 55%, rgba(96,106,136,.82));}
 #stars{position:fixed; left:0; right:0; top:0; height:34vh; z-index:2; pointer-events:none; opacity:0; transition:opacity 2s;}
@@ -236,6 +240,9 @@ body.t-night #stars{opacity:1;}
 .endnote code{font-family:var(--mono); font-size:11px; color:var(--ink);}
 .endnote a{color:var(--ink);}
 
+@media (max-width:900px){
+  .intro{backdrop-filter:none; -webkit-backdrop-filter:none; background:rgba(238,240,224,.93);}
+}
 @media (max-width:700px){
   .bb-union{width:440px;} .bb-union .p{width:150px;} .bb-union .ports{gap:34px;}
   .bb-today{width:520px;} .bb-today .row img{width:110px;}
