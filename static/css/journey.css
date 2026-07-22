@@ -17,7 +17,9 @@ body.t-night .scene{background:linear-gradient(180deg,#232B3F 0%, #2E374D 26%, #
 .ridge svg{position:absolute; left:-6%; width:112%; bottom:0; display:block;}
 body.t-night .ridge{filter:brightness(.45) saturate(.6);}
 body.t-dusk .ridge{filter:brightness(.85) sepia(.25);}
-.zoom{position:absolute; left:50%; top:57%; transform-style:preserve-3d;}
+/* the trail's current point rides ~1/4 up from the bottom of the screen,
+   so most of the view is the valley ahead rather than ground already walked */
+.zoom{position:absolute; left:50%; top:74%; transform-style:preserve-3d;}
 .tilt{position:absolute; left:0; top:0; transform-style:preserve-3d; transform:rotateX(var(--tilt));}
 /* NOTE: never put `filter` on .zoom/.tilt/.map or any 3D ancestor — filters
    force transform-style:flat and squash every billboard into the ground. Day
@@ -79,14 +81,22 @@ body.t-night .bb .line, body.t-night .bb-today h2, body.t-night .bb-today p{
 .bb-camp .date-chip{margin-bottom:8px;}
 .bb-camp:focus-visible{outline:3px solid var(--gold); outline-offset:4px;}
 
-.fan{position:absolute; left:50%; bottom:36px; pointer-events:none;}
-.fan .fp{position:absolute; left:0; bottom:0; width:118px; background:#FBF9EE; border-radius:9px; padding:6px;
-  border:2px solid var(--acc); box-shadow:0 10px 24px rgba(57,66,46,.3); cursor:pointer;
-  transform:translate(-50%,0) scale(.2); opacity:0; transition:transform .5s cubic-bezier(.2,.9,.3,1.15), opacity .4s;}
-.fan .fp img{width:100%; aspect-ratio:1; object-fit:cover; border-radius:5px; display:block; pointer-events:none;}
-.bb-camp.open .fan{pointer-events:auto;}
-.bb-camp.open .fan .fp{opacity:1; transform:translate(-50%, var(--fy)) translateX(var(--fx)) scale(1);}
-.map.dimmed .bb:not(.open){opacity:.22;}
+#fanOverlay{position:fixed; inset:0; z-index:30; pointer-events:none;
+  background:rgba(35,40,28,0); transition:background .35s;}
+#fanOverlay.on{pointer-events:auto; background:rgba(35,40,28,.3);}
+.fanbox{position:absolute; width:0; height:0;}
+.fanpop{position:absolute; left:0; top:0; width:122px; background:#FBF9EE; border-radius:9px; padding:6px;
+  border:2px solid var(--acc); box-shadow:0 14px 34px rgba(14,18,10,.45); cursor:pointer;
+  transform:translate(-50%,-50%) scale(.2); opacity:0;
+  transition:transform .5s cubic-bezier(.2,.9,.3,1.15), opacity .4s;}
+#fanOverlay.on .fanpop{opacity:1;
+  transform:translate(calc(-50% + var(--fx)), calc(-50% + var(--fy))) scale(1);}
+.fanpop img{width:100%; aspect-ratio:1; object-fit:cover; border-radius:5px; display:block; pointer-events:none;}
+.fanmore{position:absolute; left:0; top:30px; transform:translate(-50%,0); white-space:nowrap;
+  background:#39422E; color:#F2F0E2; border:none; border-radius:999px; padding:8px 18px;
+  font-size:12px; letter-spacing:.12em; text-transform:uppercase; cursor:pointer; opacity:0; transition:opacity .4s .2s;}
+#fanOverlay.on .fanmore{opacity:1;}
+.fanmore:focus-visible, .fanpop:focus-visible{outline:3px solid var(--gold); outline-offset:3px;}
 
 .bb-lantern{width:320px; text-align:center;}
 .bb-lantern .halo{width:210px; height:210px; margin:0 auto -172px; border-radius:50%;
@@ -244,6 +254,7 @@ body.t-night #stars{opacity:1;}
   .intro{backdrop-filter:none; -webkit-backdrop-filter:none; background:rgba(238,240,224,.93);}
 }
 @media (max-width:700px){
+  .fanpop{width:96px;}
   .bb-union{width:440px;} .bb-union .p{width:150px;} .bb-union .ports{gap:34px;}
   .bb-today{width:520px;} .bb-today .row img{width:110px;}
   #minimap{right:6px;}
@@ -252,5 +263,5 @@ body.t-night #stars{opacity:1;}
 @media (prefers-reduced-motion: reduce){
   .intro .hint, .cloudshadow, .flutter, .flutter svg, .home-smoke, .wpart,
   .firefly, .bird svg{animation:none;}
-  .bb,.fan .fp,.endnote,.lore-chip{transition:none;}
+  .bb,.fanpop,.fanmore,#fanOverlay,.endnote,.lore-chip{transition:none;}
 }

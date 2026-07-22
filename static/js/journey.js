@@ -672,28 +672,11 @@
         <span class="date-chip" style="--acc:${featPet ? featPet.color : 'var(--gold)'}">${e.label}</span>
         <div class="frame"><img src="${feat.thumb}" alt="${esc(e.label)}" loading="lazy">
           <div class="count">${e.photos.length === 1 ? '1 photo' : e.photos.length + ' photos'}</div></div>
-        <div class="post"></div>
-        <div class="fan"></div>`, 130);
+        <div class="post"></div>`, 130);
       el.tabIndex = 0;
-      const fan = el.querySelector('.fan');
-      const shown = e.photos.slice(0, 8);
-      shown.forEach((ph, i) => {
-        const pet = petBy[ph.dog];
-        const fp = document.createElement('div');
-        fp.className = 'fp';
-        const n = shown.length, spread = Math.min(150, 44 + n * 14);
-        const ang = (n === 1) ? 0 : (-spread/2 + spread * i / (n - 1));
-        const rad = 205;
-        fp.style.setProperty('--fx', (Math.sin(ang * Math.PI/180) * rad).toFixed(0) + 'px');
-        fp.style.setProperty('--fy', (-70 - Math.cos(ang * Math.PI/180) * rad * 0.62).toFixed(0) + 'px');
-        fp.style.setProperty('--acc', pet ? pet.color : 'var(--gold)');
-        fp.style.transitionDelay = (i * 0.04) + 's';
-        fp.innerHTML = `<img src="${ph.thumb}" alt="" loading="lazy">`;
-        fp.addEventListener('click', ev => { ev.stopPropagation(); openLightbox(e.photos, e.photos.indexOf(ph)); });
-        fan.appendChild(fp);
-      });
-      el.addEventListener('click', () => toggleCamp(el));
-      el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); toggleCamp(el); }});
+      el._photos = e.photos;
+      el.addEventListener('click', () => openFan(el));
+      el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openFan(el); }});
     }
     else if (e.type === 'passing'){
       const p = petBy[e.pet];
@@ -716,18 +699,61 @@
     }
   });
 
-  function toggleCamp(el){
-    const wasOpen = el.classList.contains('open');
-    document.querySelectorAll('.bb-camp.open').forEach(c => c.classList.remove('open'));
-    map.classList.remove('dimmed');
-    if (!wasOpen){ el.classList.add('open'); map.classList.add('dimmed'); }
+  /* The photo fan lives in a fixed overlay ABOVE the 3D world — inside the
+     world, nearer scenery would depth-sort in front of the photos. */
+  const fanOv = document.createElement('div');
+  fanOv.id = 'fanOverlay';
+  document.body.appendChild(fanOv);
+  let fanOpenEl = null, fanScrollY = 0;
+  function closeFan(){
+    if (!fanOpenEl) return;
+    fanOpenEl = null;
+    fanOv.classList.remove('on');
+    fanOv.innerHTML = '';
   }
-  document.addEventListener('keydown', ev => {
-    if (ev.key === 'Escape'){
-      document.querySelectorAll('.bb-camp.open').forEach(c => c.classList.remove('open'));
-      map.classList.remove('dimmed');
-      closeLightbox();
+  function openFan(el){
+    if (fanOpenEl === el){ closeFan(); return; }
+    closeFan();
+    fanOpenEl = el; fanScrollY = scrollY;
+    const r = el.getBoundingClientRect();
+    const photos = el._photos;
+    const shown = photos.slice(0, 8);
+    const scaleF = Math.min(1, innerWidth / 580);
+    const rad = 205 * scaleF;
+    const margin = Math.min(rad + 80, innerWidth / 2 - 8);
+    const ax = clamp(r.left + r.width / 2, margin, innerWidth - margin);
+    const ay = clamp(r.top + 44, 200, innerHeight - 110);
+    const box = document.createElement('div');
+    box.className = 'fanbox';
+    box.style.left = ax + 'px'; box.style.top = ay + 'px';
+    shown.forEach((ph, i) => {
+      const pet = petBy[ph.dog];
+      const n = shown.length, spread = Math.min(165, 50 + n * 15);
+      const ang = (n === 1) ? 0 : (-spread / 2 + spread * i / (n - 1));
+      const fp = document.createElement('button');
+      fp.className = 'fanpop';
+      fp.style.setProperty('--fx', (Math.sin(ang * Math.PI / 180) * rad).toFixed(0) + 'px');
+      fp.style.setProperty('--fy', (-46 - Math.cos(ang * Math.PI / 180) * rad * 0.62).toFixed(0) + 'px');
+      fp.style.setProperty('--acc', pet ? pet.color : 'var(--gold)');
+      fp.style.transitionDelay = (i * 0.04) + 's';
+      fp.setAttribute('aria-label', 'View photo');
+      fp.innerHTML = `<img src="${ph.thumb}" alt="" loading="lazy">`;
+      fp.addEventListener('click', ev => { ev.stopPropagation(); openLightbox(photos, photos.indexOf(ph)); });
+      box.appendChild(fp);
+    });
+    if (photos.length > shown.length){
+      const more = document.createElement('button');
+      more.className = 'fanmore';
+      more.textContent = 'all ' + photos.length + ' photos';
+      more.addEventListener('click', ev => { ev.stopPropagation(); openLightbox(photos, 0); });
+      box.appendChild(more);
     }
+    fanOv.appendChild(box);
+    requestAnimationFrame(() => fanOv.classList.add('on'));
+  }
+  fanOv.addEventListener('click', ev => { if (ev.target === fanOv) closeFan(); });
+  document.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape'){ closeFan(); closeLightbox(); }
   });
 
   /* ---------- lightbox ---------- */
@@ -1052,6 +1078,8 @@
     }
     const end = camProg > 0.965;
     if (end !== lastEnd){ lastEnd = end; endnote.classList.toggle('on', end); }
+
+    if (fanOpenEl && Math.abs(scrollY - fanScrollY) > 90) closeFan();
   }
 
   /* keep animating until the camera has caught up with the scrollbar */
