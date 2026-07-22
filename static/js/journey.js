@@ -40,15 +40,20 @@
   }
   const PAD_TOP = 900, PAD_BOT = 1000;
   const LEN = PAD_TOP + gaps.reduce((a, b) => a + b, 0) + PAD_BOT;
-  let layoutY = LEN - PAD_BOT, side = 1;
+  let layoutY = LEN - PAD_BOT;
+  let side = rnd() > 0.5 ? 1 : -1;
+  let prevX = CX;
   evs.forEach((e, i) => {
     if (i > 0) layoutY -= gaps[i-1];
     let x = CX;
     if (e.type !== 'union' && e.type !== 'today'){
-      x = CX + side * AMP * (0.72 + 0.28 * ((i * 37) % 10) / 10);
-      side = -side;
+      if (rnd() < 0.62) side = -side;           // sometimes linger on a side
+      const amp = AMP * (0.25 + 0.75 * rnd());  // shallow drifts to wide bends
+      x = CX + side * amp;
+      if (Math.abs(x - prevX) < 150) x = clamp(x + side * 200, CX - AMP, CX + AMP);
     }
     pts.push({x, y: layoutY, e});
+    prevX = x;
   });
 
   const anchors = pts.map(p => ({m: p.e.month, y: p.y}));
@@ -142,13 +147,25 @@
   }
   const bandFor = yy => clamp(Math.floor((yy - BAND0) / BANDH), 0, NB - 1);
 
-  /* trail geometry */
-  let dStr = `M ${pts[0].x} ${pts[0].y + 700} L ${pts[0].x} ${pts[0].y}`;
+  /* trail geometry: waypoints = events + drift points inside long gaps */
+  const waypts = [pts[0]];
   for (let i = 1; i < pts.length; i++){
-    const a = pts[i-1], b = pts[i], g = (a.y - b.y) * 0.5;
-    dStr += ` C ${a.x} ${a.y - g}, ${b.x} ${b.y + g}, ${b.x} ${b.y}`;
+    const a = pts[i-1], b = pts[i];
+    if (a.y - b.y > 620){
+      const my = (a.y + b.y) / 2;
+      const mx = clamp((a.x + b.x) / 2 + (rnd() - 0.5) * 460, CX - AMP - 80, CX + AMP + 80);
+      waypts.push({x: mx, y: my});
+    }
+    waypts.push(b);
   }
-  dStr += ` L ${pts[pts.length-1].x} ${pts[pts.length-1].y - 90}`;
+  let dStr = `M ${waypts[0].x} ${waypts[0].y + 700} L ${waypts[0].x} ${waypts[0].y}`;
+  for (let i = 1; i < waypts.length; i++){
+    const a = waypts[i-1], b = waypts[i];
+    const g1 = (a.y - b.y) * (0.34 + rnd() * 0.3);
+    const g2 = (a.y - b.y) * (0.34 + rnd() * 0.3);
+    dStr += ` C ${a.x} ${a.y - g1}, ${b.x} ${b.y + g2}, ${b.x} ${b.y}`;
+  }
+  dStr += ` L ${waypts[waypts.length-1].x} ${waypts[waypts.length-1].y - 90}`;
 
   const guideProbe = document.createElementNS(NS, 'path');
   guideProbe.setAttribute('d', dStr); guideProbe.setAttribute('fill', 'none');
