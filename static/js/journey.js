@@ -298,7 +298,7 @@
     el.innerHTML = html;
     map.appendChild(el);
     if (opts.shadow) addShadow(x, y, opts.shadow);
-    props.push({el, y});
+    props.push({el, y, yMin: y, yMax: y});
     return el;
   }
 
@@ -344,14 +344,20 @@
     spring:['#5E8256','#4E6F49'], summer:['#4F7348','#3F5E3B'],
     autumn:['#5E7A4C','#4C6340'], winter:['#5B6E58','#4A5B48']
   };
-  const eventClear = (x, y) => pts.some(p => Math.abs(p.y - y) < 380 && Math.abs(p.x - x) < 560);
+  // A tree behind an event can only overdraw its billboard if the tree's
+  // 260px cluster bucket can anchor nearer than the event — so the keep-out
+  // zone is one bucket deep (+jitter), not more, or the zones of adjacent
+  // events merge into a continuous no-tree corridor.
+  const eventClear = (x, y) => pts.some(p =>
+    Math.abs(p.x - x) < 450 &&
+    (y < p.y ? p.y - y < 460 : y - p.y < 380));
 
   /* forest: pines + boulders merged into grove clusters — one composited
      surface per ~520px stretch per side, instead of one per tree */
   const groveItems = [];
-  const treeTarget = clamp(Math.round(LEN / 95), 50, 120);
+  const treeTarget = clamp(Math.round(LEN / 85), 50, 130);
   let placed = 0, guard = 0;
-  while (placed < treeTarget && guard++ < treeTarget * 5){
+  while (placed < treeTarget && guard++ < treeTarget * 7){
     const d = 120 + rnd() * (PLEN - 240);
     const p = atDist(d);
     const off = (rnd() > 0.5 ? 1 : -1) * (360 + Math.pow(rnd(), 0.6) * 640);
@@ -378,11 +384,15 @@
   }
   const groves = {};
   groveItems.forEach(it => {
-    const key = Math.floor(it.y / 520) + '|' + (it.x < CX ? 'L' : 'R');
+    const key = Math.floor(it.y / 260) + '|' + (it.x < CX ? 'L' : 'R');
     (groves[key] = groves[key] || []).push(it);
   });
   Object.values(groves).forEach(items => {
+    // anchor at the NEAREST tree: the whole cluster renders at one depth, and
+    // rendering slightly-far trees at a slightly-near scale is invisible,
+    // while the reverse (far anchor) shrinks whole groves into the horizon
     const baseY = Math.max(...items.map(i => i.y));
+    const yMin = Math.min(...items.map(i => i.y));
     const baseX = items.reduce((a, i) => a + i.x, 0) / items.length;
     const el = document.createElement('div');
     el.className = 'grove';
@@ -392,7 +402,7 @@
       .map(i => `<div class="gi" style="left:${(i.x - baseX).toFixed(0)}px; bottom:${((baseY - i.y) * 0.55).toFixed(0)}px;">${i.svg}</div>`)
       .join('');
     map.appendChild(el);
-    props.push({el, y: baseY});
+    props.push({el, y: baseY, yMin, yMax: baseY});
     items.forEach(i => addShadow(i.x, i.y, i.sh));
   });
 
@@ -627,8 +637,21 @@
     }
   }
 
+  /* ---------- "you are here": paw prints walking the trail ---------- */
+  const PAW_G = '<ellipse cx="0" cy="4" rx="5" ry="6"/><circle cx="-5.5" cy="-3.5" r="2.2"/>'
+    + '<circle cx="-1.8" cy="-6.5" r="2.2"/><circle cx="1.8" cy="-6.5" r="2.2"/><circle cx="5.5" cy="-3.5" r="2.2"/>';
+  const pawMark = document.createElement('div');
+  pawMark.className = 'pawmark';
+  pawMark.innerHTML = `<svg width="86" height="52" viewBox="0 0 86 52" style="position:absolute; left:-43px; top:-26px;">
+    <g fill="#C9A227" stroke="#6B5C40" stroke-width="1">
+      <g opacity=".3" transform="translate(12,33) rotate(90) scale(.6)">${PAW_G}</g>
+      <g opacity=".62" transform="translate(40,19) rotate(90) scale(.72)">${PAW_G}</g>
+      <g transform="translate(70,33) rotate(90) scale(.85)">${PAW_G}</g>
+    </g></svg>`;
+  map.appendChild(pawMark);
+
   /* ---------- narrative billboards ---------- */
-  const bbs = [];
+  const bbs = [], campBbs = [];
   function bb(cls, x, y, html, shadowR){
     const el = document.createElement('div');
     el.className = 'bb ' + cls;
@@ -677,6 +700,7 @@
       el._photos = e.photos;
       el.addEventListener('click', () => openFan(el));
       el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openFan(el); }});
+      campBbs.push({el, y});
     }
     else if (e.type === 'passing'){
       const p = petBy[e.pet];
@@ -1035,7 +1059,7 @@
       if (on !== b.el.classList.contains('on')) b.el.classList.toggle('on', on);
     });
     props.forEach(pr => {
-      const vis = pr.y > camY - 1900 && pr.y < camY + 1100;
+      const vis = pr.yMax > camY - 2400 && pr.yMax < camY + 900;
       if (vis === !pr.hidden) return;
       pr.hidden = !vis;
       pr.el.style.display = vis ? '' : 'none';
@@ -1045,6 +1069,16 @@
       if (vis === !b.hidden) return;
       b.hidden = !vis;
       b.svg.style.display = vis ? '' : 'none';
+    });
+
+    {
+      const back = atDist(camDist - 60);
+      const ang = Math.atan2(p.y - back.y, p.x - back.x) * 180 / Math.PI;
+      pawMark.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) rotate(${ang.toFixed(1)}deg)`;
+    }
+    campBbs.forEach(c => {
+      const here = Math.abs(c.y - camY) < 260;
+      if (here !== c.el.classList.contains('here')) c.el.classList.toggle('here', here);
     });
 
     if (deer){

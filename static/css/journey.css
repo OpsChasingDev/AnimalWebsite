@@ -29,6 +29,10 @@ body.t-dusk .ridge{filter:brightness(.85) sepia(.25);}
 
 /* water highlights are static: animating them repaints the whole ground SVG */
 
+/* "you are here" paw prints, flat on the trail */
+.pawmark{position:absolute; left:0; top:0; width:0; height:0; will-change:transform; pointer-events:none;}
+body.t-night .pawmark svg{filter:drop-shadow(0 0 5px rgba(233,201,90,.85));}
+
 /* cloud shadows drifting over the ground */
 .cloudshadow{position:absolute; border-radius:50%; background:radial-gradient(ellipse, rgba(40,54,36,.11) 0%, rgba(40,54,36,.05) 55%, transparent 72%);
   pointer-events:none; animation:clouddrift 100s ease-in-out infinite alternate;}
@@ -74,7 +78,11 @@ body.t-night .bb .line, body.t-night .bb-today h2, body.t-night .bb-today p{
 
 .bb-camp{width:270px; text-align:center; cursor:pointer;}
 .bb-camp .frame{width:230px; margin:0 auto; background:#FBF9EE; border-radius:12px; padding:9px 9px 7px;
-  box-shadow:0 14px 32px rgba(57,66,46,.26); border:1px solid #E0DCC4;}
+  box-shadow:0 14px 32px rgba(57,66,46,.26); border:1px solid #E0DCC4;
+  transition:box-shadow .5s, transform .5s;}
+.bb-camp.here .frame{box-shadow:0 0 0 4px var(--gold), 0 0 28px 8px rgba(201,162,39,.4),
+  0 14px 32px rgba(57,66,46,.26); transform:translateY(-5px);}
+.bb-camp.here .date-chip{background:var(--gold);}
 .bb-camp .frame img{width:100%; aspect-ratio:1; object-fit:cover; border-radius:7px; display:block;}
 .bb-camp .count{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--faded); padding:6px 0 2px;}
 .bb-camp .post{width:9px; height:52px; margin:0 auto; background:#8F7B57; border-radius:0 0 4px 4px;}
