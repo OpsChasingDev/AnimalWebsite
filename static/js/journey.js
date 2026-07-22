@@ -78,6 +78,16 @@
   const map = document.getElementById('map');
   const NS = 'http://www.w3.org/2000/svg';
 
+  /* camera elevation: 90 = straight down, lower = more grazing.
+     Default 60; tune live with ?view=NN (no deploy needed). */
+  const params = new URLSearchParams(location.search);
+  const VIEW = clamp(parseFloat(params.get('view')) || 60, 25, 78);
+  const TILT = 90 - VIEW;
+  document.documentElement.style.setProperty('--tilt', TILT.toFixed(1) + 'deg');
+  const COS_T = Math.cos(TILT * Math.PI / 180);
+  const GI_F = COS_T * 0.89;          // map-y delta -> in-plane offset for grove trees
+  const SH_R = clamp(0.32 * (COS_T / 0.6157), 0.2, 0.6);  // ground-shadow squash
+
   /* Lite tier for touch devices: iOS Safari has hard per-tab GPU limits and
      rasterizes 3D-transformed content into full (untiled) backing stores. */
   const LITE = matchMedia('(pointer: coarse)').matches
@@ -282,8 +292,8 @@
 
   function addShadow(x, y, rx){
     const el = document.createElementNS(NS, 'ellipse');
-    el.setAttribute('cx', x); el.setAttribute('cy', y - (rx * 0.32 + 10));
-    el.setAttribute('rx', rx); el.setAttribute('ry', rx * 0.32);
+    el.setAttribute('cx', x); el.setAttribute('cy', y - (rx * SH_R + 10));
+    el.setAttribute('rx', rx); el.setAttribute('ry', rx * SH_R);
     el.setAttribute('fill', 'rgba(45,52,32,.16)');
     bands[bandFor(y)].shadows.appendChild(el);
   }
@@ -399,7 +409,7 @@
     el.style.left = baseX + 'px'; el.style.top = baseY + 'px';
     el.innerHTML = items
       .sort((a, b) => a.y - b.y)   // farther trees paint first
-      .map(i => `<div class="gi" style="left:${(i.x - baseX).toFixed(0)}px; bottom:${((baseY - i.y) * 0.55).toFixed(0)}px;">${i.svg}</div>`)
+      .map(i => `<div class="gi" style="left:${(i.x - baseX).toFixed(0)}px; bottom:${((baseY - i.y) * GI_F).toFixed(0)}px;">${i.svg}</div>`)
       .join('');
     map.appendChild(el);
     props.push({el, y: baseY, yMin, yMax: baseY});
@@ -847,7 +857,6 @@
   });
 
   /* ---------- time of day, stars, weather ---------- */
-  const params = new URLSearchParams(location.search);
   function timeMode(){
     const o = params.get('t');
     if (o === 'day' || o === 'dusk' || o === 'night') return o;
