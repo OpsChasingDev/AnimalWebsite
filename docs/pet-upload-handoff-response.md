@@ -11,6 +11,16 @@ application code has been written.**
 > Azure side — the decisions below are made and live, and whoever implements
 > the feature next should build against them.
 
+> **⚠ SUPERSEDED IN ONE RESPECT (2026-08-15).** The claim below that the app
+> registration carries **zero client secrets** is no longer true, and the
+> secret-free design it describes **did not work**. Easy Auth could not redeem
+> the authorization code using the managed-identity federated credential, which
+> broke sign-in entirely. Both apps now use a real client secret in
+> `MICROSOFT_PROVIDER_AUTHENTICATION_SECRET`, **expiring 2028-08-15**; the
+> federated credentials have been deleted. See §16.1 of `pet-upload-spec.md`.
+> The **storage** path is unaffected and still uses managed identity with no
+> secret — that half of the design works and is in production.
+
 ---
 
 ## 1. Decision on §4 — storage credential

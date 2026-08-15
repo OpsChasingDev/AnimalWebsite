@@ -1,5 +1,9 @@
 # Spec: private-container hardening, then `/upload`
 
+> **SHIPPED 2026-08-15.** All six outcomes are live in production and verified.
+> Three things below turned out to be wrong in practice — corrected in §16.
+> Read §16 before trusting any statement about credentials or the seal procedure.
+
 **Status:** ready to build. Azure side is already live (see
 `pet-upload-handoff-response.md`); everything below is application code.
 **Order changed 2026-08-14:** hardening ships **first**, uploads second. See §2.
@@ -546,3 +550,101 @@ data simply not exist. **Recommended but no longer urgent** — worth folding in
   `*.azurewebsites.net` default hosts) and upload one photo: no `bad_origin`.
 - After upload, the photo appears on the trail within one page load.
 - Upload works with the container private (it will already be sealed).
+
+---
+
+## 16. What was wrong — corrections from shipping this
+
+Three claims above did not survive contact with the platform. They are left in
+place so the reasoning is still readable, but **this section wins.**
+
+### 16.1 Easy Auth needs a real client secret — the secret-free design failed
+
+§5 and `pet-upload-handoff-response.md` claimed the app registration would carry
+**zero secrets**, using workload identity federation so Easy Auth authenticates
+as the web app's own managed identity. That does not work here.
+
+What actually happened: Easy Auth issued a correct `response_type=code+id_token`
+request — which looked like proof the credential worked — but could never redeem
+the authorization code. The callback failed silently, no session cookie was set,
+and the browser bounced back to login forever. User sign-ins showed `errorCode 0`
+in the Entra logs the whole time, because the *user* half genuinely succeeded.
+
+`response_type=code+id_token` only proves App Service **thinks** it has a
+confidential-client credential. It is not evidence the credential works. The only
+proof is a human completing a sign-in.
+
+Also disproved: the documented fallback to implicit flow. Removing
+`clientSecretSettingName` **and** `OVERRIDE_USE_MI_FIC_ASSERTION_CLIENTID` left
+Easy Auth still using hybrid flow, so a working client credential is mandatory
+on this platform — there is no credential-free mode to fall back to.
+
+Likely cause: both web apps use **system-assigned** managed identities, and the
+federated-credential "Managed Identity" scenario is restricted to **user-assigned**
+identities. An unused user-assigned identity (`animalwebsite-id-93fc`) exists in
+the resource group and would be the route to retry this, but it needs a code
+change too: adding a second identity makes the `IDENTITY_ENDPOINT` token request
+ambiguous and would break the storage reads that currently work.
+
+**Live configuration:** both apps use `MICROSOFT_PROVIDER_AUTHENTICATION_SECRET`,
+a client secret on app registration `d85552f6-c8da-4b93-8db7-9ba45132c384`,
+**expiring 2028-08-15**. Diarise the rotation. The federated credentials and the
+`OVERRIDE_USE_MI_FIC_ASSERTION_CLIENTID` settings have been deleted.
+
+The **storage** path is unaffected and still uses managed identity with no
+secret. Only sign-in needs the secret.
+
+### 16.2 The Easy Auth id header carries `sub`, not `oid`
+
+§9.2's guard required `X-MS-CLIENT-PRINCIPAL-ID` to equal the `oid` claim. Entra
+puts **`sub`** in that header — a per-application pairwise identifier that is
+deliberately *not* equal to `oid`. Every real sign-in was rejected, producing a
+second, independent login loop.
+
+The guard now accepts a match on either, and still resolves the identity to
+`oid` so `UPLOAD_ALLOWED_PRINCIPALS` keeps matching object GUIDs.
+
+Structural fix, more important than the bug: **a request that already carries
+Easy Auth headers is never redirected to login again.** Any future
+principal-validation failure renders a plain 403 explanation instead of looping,
+and every rejection path logs which check refused it. An infinite redirect is the
+worst symptom to debug because it hides the cause.
+
+### 16.3 The seal procedure in §7 is wrong
+
+`az storage container set-permission` only accepts `--auth-mode key`, so it needs
+the storage account key. With Entra auth the equivalent is
+`az storage container-rm update`.
+
+More importantly the **order in §7 is backwards in practice**. Setting the
+account flag first is what actually took effect, and once
+`allowBlobPublicAccess=false` Azure *refuses* any container-ACL edit
+("Public access is not permitted on this storage account").
+
+**Live state, and the caveat that matters:** anonymous access is blocked by the
+**account flag alone** — verified, anonymous container list and blob GET both
+return `409 PublicAccessNotPermitted`. The container ACL still reads `Container`
+and is inert. So:
+
+> Setting `allowBlobPublicAccess` back to `true` re-exposes the whole container
+> immediately, because its ACL was never changed to `off`.
+
+That is convenient as a rollback and dangerous as a footgun. To close both
+controls, briefly set the account flag `true`, set the container ACL `off`, then
+set the flag `false` again — accepting a few seconds of public exposure.
+
+**Rollback if a read path is ever found broken:** set
+`allowBlobPublicAccess true` on the account. That alone restores the previous
+behaviour, because the container ACL is still `Container`.
+
+### 16.4 Still not covered
+
+- A photo with **no derivable date at all** — the 422-and-require-a-date path is
+  unit-tested but has never been exercised through the browser UI.
+- Deleting a blob by hand leaves it on the trail for up to 60s. Uploads
+  invalidate the model cache; out-of-band deletions cannot.
+- A nightly Automation runbook (`animalwebsite-scheduler` / `Stop-AnimalWebsite`,
+  schedule `nightly-2200-eastern`) stops **both** web apps at 22:00 America/New_York
+  daily. `/upload` is therefore dead every night from 10pm — the exact hours
+  someone is most likely to reach for their phone. Left in place deliberately as
+  a cost control; revisit if it bites.
