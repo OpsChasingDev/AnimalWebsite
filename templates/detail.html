@@ -19,7 +19,7 @@
             <a class="back-link" href="{{ url_for('journey') }}">← back to the trail</a>
 
             <article class="detail-card fade-in">
-                <img class="detail-photo" src="{{ pet.headshot_url }}" alt="{{ pet.name }}">
+                <img class="detail-photo" src="{{ pet.headshot_large }}" alt="{{ pet.name }}">
                 <h1 class="detail-name">{{ pet.name }}</h1>
                 {% if pet.born or pet.passed %}
                 <p class="life-dates">
