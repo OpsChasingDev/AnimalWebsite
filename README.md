@@ -66,8 +66,18 @@ pets/
 ```
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+az login             # blob reads use your own Entra identity locally
 python app.py        # http://localhost:8000
 ```
+
+The container is (or will be) private, so the app authenticates every blob read.
+On App Service it uses the web app's managed identity; locally it falls back to
+`az account get-access-token`, which needs `az login` and the
+`Storage Blob Data Contributor` role on the `pets` container. Without it the
+site has nothing to render and says so instead of erroring.
+
+`/upload` is not registered locally unless `UPLOAD_DEV_AUTH=1` is set (and it is
+inert on App Service, where Easy Auth is what makes the sign-in headers real).
 
 Deploys: `/deploy-staging` merges the feature branch to `staging`;
 `/deploy-prod` (requires `DEPLOY_APPROVED=1`) promotes `staging` to `main`.

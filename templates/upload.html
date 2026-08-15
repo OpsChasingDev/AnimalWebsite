@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- The upload POST must carry an Origin header; a no-referrer policy would
+     blank it and the server would (correctly) refuse the write. -->
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="robots" content="noindex, nofollow">
+<title>Add photos — The Stapleton Pack</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  .upload-page { padding: 28px 16px 96px; max-width: 640px; margin: 0 auto; }
+  .upload-head { text-align: center; margin-bottom: 24px; }
+  .upload-head h1 { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600;
+                    font-size: 2rem; margin: 0 0 .2rem; }
+  .upload-head .who { font-size: .78rem; letter-spacing: .12em; text-transform: uppercase;
+                      opacity: .6; margin: 0; }
+  .card { background: var(--card-bg); border-radius: 14px; padding: 18px 16px;
+          box-shadow: 0 6px 20px rgba(62,45,76,.09); margin-bottom: 16px; }
+  .field-label { display: block; font-size: .74rem; letter-spacing: .14em;
+                 text-transform: uppercase; opacity: .65; margin-bottom: .4rem; }
+  select, input[type=file] { font-family: inherit; font-size: 1rem; color: var(--aubergine); }
+  select { width: 100%; padding: 11px 10px; border: 1px solid var(--lavender);
+           border-radius: 10px; background: #fff; }
+  .pick { display: block; text-align: center; padding: 14px; border-radius: 10px;
+          border: 1px dashed var(--plum); color: var(--plum); cursor: pointer;
+          background: var(--blossom); font-size: 1rem; }
+  .pick input { display: none; }
+  .flag-bar { display: none; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+  .flag-bar.show { display: flex; }
+  .flag-bar > div { flex: 1 1 100px; }
+  .photo { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid rgba(109,79,143,.14); }
+  .photo:first-child { border-top: 0; }
+  .photo img { width: 66px; height: 66px; object-fit: cover; border-radius: 8px; flex: none;
+               background: var(--blossom); }
+  .photo .body { flex: 1 1 auto; min-width: 0; }
+  .photo .fname { font-size: .86rem; word-break: break-all; margin: 0 0 .25rem; }
+  .photo .meta { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase;
+                 opacity: .6; margin: 0 0 .5rem; }
+  .photo.flagged { background: rgba(201,113,138,.09); border-radius: 8px; padding-left: 8px;
+                   padding-right: 8px; }
+  .photo.flagged .meta { color: #a8425f; opacity: 1; }
+  .photo.done { opacity: .55; }
+  .photo.failed .meta { color: #a8425f; opacity: 1; }
+  .dates { display: flex; gap: 8px; }
+  .dates select { padding: 8px; font-size: .9rem; }
+  .bar { height: 4px; border-radius: 2px; background: rgba(109,79,143,.15); margin-top: 8px;
+         overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--plum);
+           transition: width .15s linear; }
+  .row-actions { margin-top: 6px; }
+  button { font-family: inherit; }
+  .btn { display: block; width: 100%; padding: 14px; border: 0; border-radius: 10px;
+         background: var(--plum); color: #fff; font-size: 1rem; letter-spacing: .04em;
+         cursor: pointer; }
+  .btn[disabled] { background: #b9aec6; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--plum); border: 1px solid var(--lavender);
+               padding: 10px; width: auto; font-size: .82rem; border-radius: 8px; }
+  .note { font-size: .8rem; opacity: .7; margin: 10px 2px 0; text-align: center; }
+  .warn { background: rgba(201,113,138,.14); border-radius: 10px; padding: 10px 12px;
+          font-size: .86rem; }
+  .back-link { display: inline-block; font-size: .8rem; letter-spacing: .1em;
+               text-transform: uppercase; opacity: .7; }
+</style>
+</head>
+<body>
+<div class="page-background">
+  <div class="upload-page">
+    <a class="back-link" href="{{ url_for('journey') }}">← back to the trail</a>
+
+    <div class="upload-head">
+      <h1>Add photos</h1>
+      <p class="who">signed in as {{ who }}</p>
+    </div>
+
+    {% if not pets %}
+    <div class="card warn" role="alert">
+      The pet list could not be loaded, so nothing can be uploaded right now.
+      Reload in a moment.
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <label class="field-label" for="pet">Whose photos are these?</label>
+      <select id="pet" {% if not pets %}disabled{% endif %}>
+        <option value="">— pick a pet —</option>
+        {% for p in pets %}<option value="{{ p.slug }}">{{ p.name }}</option>{% endfor %}
+      </select>
+      <p class="note">One pet per batch. Two pets means two trips.</p>
+    </div>
+
+    <div class="card">
+      <label class="pick">
+        Choose photos
+        <input id="files" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+      </label>
+      <p class="note">JPEG, PNG or WebP, up to {{ (max_bytes / 1048576) | round | int }} MB each.
+        HEIC isn't supported yet.</p>
+    </div>
+
+    <div class="card" id="listCard" hidden>
+      <div class="flag-bar" id="flagBar">
+        <div>
+          <label class="field-label" for="allYear">Year for all flagged</label>
+          <select id="allYear"></select>
+        </div>
+        <div>
+          <label class="field-label" for="allMonth">Month</label>
+          <select id="allMonth"></select>
+        </div>
+        <div style="flex:0 0 auto">
+          <button class="btn ghost" id="applyAll" type="button">Apply to all flagged</button>
+        </div>
+      </div>
+      <div id="list"></div>
+    </div>
+
+    <button class="btn" id="go" type="button" disabled>Upload</button>
+    <p class="note" id="status"></p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const CFG = {
+    csrf: {{ csrf_token | tojson }},
+    maxBytes: {{ max_bytes }},
+    minYear: {{ min_year }},
+    nowMonth: {{ now_month | tojson }}
+  };
+  const HEAD_BYTES = 128 * 1024;   // EXIF APP1 always lives in the first 64 KB
+  const nowYear = parseInt(CFG.nowMonth.slice(0, 4), 10);
+  const nowMonthNum = parseInt(CFG.nowMonth.slice(5, 7), 10);
+
+  const $ = (id) => document.getElementById(id);
+  const petSel = $('pet'), listEl = $('list'), listCard = $('listCard');
+  const goBtn = $('go'), statusEl = $('status'), flagBar = $('flagBar');
+  let items = [], busy = false, seq = 0;
+
+  const fillYears = (sel) => {
+    sel.innerHTML = '<option value="">year</option>';
+    for (let y = nowYear; y >= CFG.minYear; y--) {
+      sel.insertAdjacentHTML('beforeend', '<option>' + y + '</option>');
+    }
+  };
+  const fillMonths = (sel, year) => {
+    const keep = sel.value;
+    const last = (parseInt(year, 10) === nowYear) ? nowMonthNum : 12;
+    sel.innerHTML = '<option value="">month</option>';
+    for (let m = 1; m <= last; m++) {
+      const v = String(m).padStart(2, '0');
+      sel.insertAdjacentHTML('beforeend', '<option value="' + v + '">' + v + '</option>');
+    }
+    sel.value = (keep && parseInt(keep, 10) <= last) ? keep : '';
+  };
+
+  const dateOf = (it) => (it.year && it.month) ? (it.year + '-' + it.month) : (it.taken || '');
+  // 'rejected' is terminal (too large to ever send), so it neither counts as
+  // needing a date nor holds the whole batch back — otherwise one 30 MB file in
+  // a pick of twenty leaves the Upload button dead with nothing saying why.
+  const done = (it) => it.status === 'done' || it.status === 'rejected';
+  const flagged = (it) => !done(it) && !dateOf(it);
+  const pending = () => items.filter(it => !done(it));
+
+  function refresh() {
+    listCard.hidden = items.length === 0;
+    flagBar.classList.toggle('show', items.some(flagged));
+    const ready = petSel.value && pending().length > 0 && !pending().some(flagged);
+    goBtn.disabled = !ready || busy;
+    goBtn.textContent = busy ? 'Uploading…'
+      : 'Upload ' + pending().length + ' photo' + (pending().length === 1 ? '' : 's');
+  }
+
+  function metaLine(it) {
+    if (it.status === 'done') return 'added as ' + it.result.name;
+    if (it.status === 'rejected') return it.message + ' — it will be skipped';
+    if (it.status === 'failed') return it.message;
+    if (it.status === 'uploading') return 'uploading…';
+    if (it.status === 'checking') return 'reading date…';
+    if (it.taken) return 'date from ' + it.source + ': ' + it.taken;
+    return 'needs a date';
+  }
+
+  function render() {
+    listEl.textContent = '';
+    items.forEach(it => {
+      const row = document.createElement('div');
+      row.className = 'photo' + (flagged(it) ? ' flagged' : '')
+                    + (it.status === 'done' ? ' done' : '')
+                    + (it.status === 'failed' || it.status === 'rejected' ? ' failed' : '');
+      const img = document.createElement('img');
+      img.alt = ''; img.src = it.preview;
+      const body = document.createElement('div');
+      body.className = 'body';
+      const nm = document.createElement('p');
+      nm.className = 'fname'; nm.textContent = it.name;
+      const meta = document.createElement('p');
+      meta.className = 'meta'; meta.textContent = metaLine(it);
+      body.append(nm, meta);
+
+      if (it.status !== 'done' && it.status !== 'rejected') {
+        const dates = document.createElement('div');
+        dates.className = 'dates';
+        const ys = document.createElement('select'), ms = document.createElement('select');
+        fillYears(ys); ys.value = it.year || '';
+        fillMonths(ms, ys.value); ms.value = it.month || '';
+        ys.addEventListener('change', () => {
+          it.year = ys.value; it.dirty = true; fillMonths(ms, ys.value);
+          it.month = ms.value; render();
+        });
+        ms.addEventListener('change', () => {
+          it.month = ms.value; it.dirty = true; render();
+        });
+        dates.append(ys, ms);
+        body.append(dates);
+      }
+
+      if (it.status !== 'done') {
+        const acts = document.createElement('div');
+        acts.className = 'row-actions';
+        const rm = document.createElement('button');
+        rm.type = 'button'; rm.className = 'btn ghost'; rm.textContent = 'Remove';
+        rm.addEventListener('click', () => {
+          items = items.filter(x => x !== it); render();
+        });
+        acts.append(rm);
+        body.append(acts);
+      }
+
+      if (it.status !== 'done' && it.status !== 'rejected') {
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        const fill = document.createElement('i');
+        fill.style.width = (it.progress || 0) + '%';
+        bar.append(fill); it.barEl = fill;
+        body.append(bar);
+      }
+      row.append(img, body);
+      listEl.append(row);
+    });
+    refresh();
+  }
+
+  // --- preflight: the server derives the date, the page only displays it ----
+  async function inspect(it) {
+    it.status = 'checking'; render();
+    const fd = new FormData();
+    fd.append('filename', it.name);
+    fd.append('head', it.file.slice(0, HEAD_BYTES), it.name);
+    try {
+      const r = await fetch('/upload/inspect', {
+        method: 'POST', body: fd, credentials: 'same-origin',
+        headers: { 'X-CSRF-Token': CFG.csrf }
+      });
+      const data = await r.json();
+      if (r.ok && data.ok) {
+        it.taken = data.taken; it.source = data.source;
+        if (data.taken) { it.year = data.taken.slice(0, 4); it.month = data.taken.slice(5, 7); }
+        it.status = 'ready';
+      } else {
+        it.status = 'failed';
+        it.message = data.message || 'could not be read';
+      }
+    } catch (e) {
+      it.status = 'ready';           // fall back to the server's own resolution
+      it.message = '';
+    }
+    render();
+  }
+
+  $('files').addEventListener('change', (ev) => {
+    for (const f of ev.target.files) {
+      const it = {
+        id: ++seq, file: f, name: f.name, preview: URL.createObjectURL(f),
+        taken: null, source: null, year: '', month: '', dirty: false,
+        status: 'new', message: '', progress: 0, result: null
+      };
+      if (f.size > CFG.maxBytes) {
+        it.status = 'rejected';
+        it.message = 'larger than ' + Math.round(CFG.maxBytes / 1048576) + ' MB';
+        items.push(it);
+      } else {
+        items.push(it); inspect(it);
+      }
+    }
+    ev.target.value = '';
+    render();
+  });
+
+  $('applyAll').addEventListener('click', () => {
+    const y = $('allYear').value, m = $('allMonth').value;
+    if (!y || !m) return;
+    items.filter(flagged).forEach(it => { it.year = y; it.month = m; it.dirty = true; });
+    render();
+  });
+
+  petSel.addEventListener('change', refresh);
+
+  function uploadOne(it) {
+    return new Promise((resolve) => {
+      const fd = new FormData();
+      fd.append('slug', petSel.value);
+      fd.append('photo', it.file, it.name);
+      // Only an edited control is an override; otherwise the server's own EXIF
+      // reading stays authoritative.
+      if (it.dirty && it.year && it.month) {
+        fd.append('taken_override', it.year + '-' + it.month);
+      }
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/upload');
+      xhr.setRequestHeader('X-CSRF-Token', CFG.csrf);
+      xhr.withCredentials = true;
+      xhr.upload.addEventListener('progress', (e) => {
+        if (!e.lengthComputable) return;
+        it.progress = Math.round(e.loaded / e.total * 100);
+        if (it.barEl) it.barEl.style.width = it.progress + '%';
+      });
+      xhr.addEventListener('loadend', () => {
+        let data = {};
+        try { data = JSON.parse(xhr.responseText); } catch (e) { /* non-JSON */ }
+        if (xhr.status >= 200 && xhr.status < 300 && data.ok) {
+          it.status = 'done'; it.result = data;
+        } else {
+          it.status = 'failed';
+          it.message = data.message || ('failed (' + xhr.status + ')');
+          if (data.error === 'not_signed_in' || data.error === 'bad_csrf') {
+            statusEl.textContent = data.message + ' Nothing was lost — reload and try again.';
+          }
+        }
+        render(); resolve();
+      });
+      it.status = 'uploading'; it.progress = 0; render();
+      xhr.send(fd);
+    });
+  }
+
+  goBtn.addEventListener('click', async () => {
+    if (busy) return;
+    busy = true; statusEl.textContent = ''; refresh();
+    for (const it of items.slice()) {
+      if (done(it)) continue;
+      await uploadOne(it);
+    }
+    busy = false;
+    const added = items.filter(i => i.status === 'done').length;
+    const left = items.filter(i => i.status !== 'done' && i.status !== 'rejected').length;
+    const skipped = items.filter(i => i.status === 'rejected').length;
+    statusEl.textContent = added + ' added'
+      + (left ? ', ' + left + ' still to fix' : '')
+      + (skipped ? ', ' + skipped + ' too large to send' : '') + '.';
+    render();
+  });
+
+  fillYears($('allYear'));
+  fillMonths($('allMonth'), '');
+  $('allYear').addEventListener('change', () => fillMonths($('allMonth'), $('allYear').value));
+  render();
+})();
+</script>
+</body>
+</html>

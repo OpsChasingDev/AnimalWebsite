@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Stapleton Pack</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  .holding { max-width: 30rem; margin: 18vh auto 0; padding: 0 20px; text-align: center; }
+  .holding h1 { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600;
+                font-size: 2.1rem; margin: 0 0 .6rem; }
+  .holding p { font-size: 1rem; line-height: 1.6; opacity: .75; margin: 0 0 1.2rem; }
+  .holding a { font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div class="page-background">
+  <div class="holding">
+    <h1>{{ message }}</h1>
+    <p>The photographs are on their way — give it a moment and try again.</p>
+    <a href="{{ url_for('journey') }}">Reload the trail</a>
+  </div>
+</div>
+</body>
+</html>
