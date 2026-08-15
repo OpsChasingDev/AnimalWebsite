@@ -806,6 +806,9 @@ def _upload_error_envelope(e):
 
 # Claim types Entra emits for the immutable object id and for a display name.
 _OID_CLAIMS = ("http://schemas.microsoft.com/identity/claims/objectidentifier", "oid")
+# Easy Auth maps `sub` to the WS-Fed nameidentifier URI during claims mapping.
+_SUB_CLAIMS = ("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier",
+               "sub")
 _NAME_CLAIMS = ("preferred_username",
                 "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn", "upn",
                 "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
@@ -822,17 +825,25 @@ def _principal() -> "tuple[str, str] | None":
     only meaningful because Easy Auth injects them and strips client copies —
     see EASY_AUTH_RUNNING.
     """
-    if request.headers.get("X-MS-CLIENT-PRINCIPAL-IDP", "").lower() != "aad":
+    idp = request.headers.get("X-MS-CLIENT-PRINCIPAL-IDP", "")
+    if idp.lower() != "aad":
+        # Only noise-free because an anonymous caller sends no headers at all.
+        if idp:
+            app.logger.warning("upload auth: provider is %r, expected 'aad'", idp)
         return None
     raw = request.headers.get("X-MS-CLIENT-PRINCIPAL", "")
     if not raw:
+        app.logger.warning("upload auth: provider header present but no claims blob")
         return None
     try:
         blob = json.loads(base64.b64decode(raw + "=" * (-len(raw) % 4)))
         claim_list = blob["claims"]
     except Exception:
+        app.logger.warning("upload auth: claims blob did not decode")
         return None
-    if str(blob.get("auth_typ", "")).lower() != "aad":
+    auth_typ = str(blob.get("auth_typ", ""))
+    if auth_typ.lower() != "aad":
+        app.logger.warning("upload auth: auth_typ is %r, expected 'aad'", auth_typ)
         return None
     claims: dict = {}
     for c in claim_list or []:
@@ -844,11 +855,18 @@ def _principal() -> "tuple[str, str] | None":
             claims[typ] = str(val)
     oid = next((claims[t] for t in _OID_CLAIMS if claims.get(t)), "")
     if not oid:
+        app.logger.warning("upload auth: no object-id claim in principal blob")
         return None
-    # Easy Auth always sets the id header, so requiring it costs a real caller
-    # nothing and removes a forging shortcut (claims blob alone).
-    if request.headers.get("X-MS-CLIENT-PRINCIPAL-ID", "").lower() != oid.lower():
-        return None  # absent, or the two disagree — trust neither
+    # Cross-check the id header against the claims so a forged claims blob alone
+    # is not enough. The header carries whatever the provider considers the
+    # caller's id -- for Entra that is `sub`, a per-application pairwise value
+    # that is deliberately NOT equal to `oid` -- so accept a match on either.
+    # Requiring oid specifically rejects every real sign-in and loops the login.
+    header_id = request.headers.get("X-MS-CLIENT-PRINCIPAL-ID", "").lower()
+    sub = next((claims[t] for t in _SUB_CLAIMS if claims.get(t)), "")
+    if not header_id or header_id not in {oid.lower(), sub.lower()}:
+        app.logger.warning("upload auth: id header does not match oid or sub claim")
+        return None
     name = next((claims[t] for t in _NAME_CLAIMS if claims.get(t)),
                 request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME", "")) or oid
     return oid, name
@@ -973,6 +991,21 @@ def upload_guard():
         return None  # nothing is registered here; let Flask 404
     who = _principal()
     if who is None:
+        # Easy Auth already authenticated this caller but we could not build a
+        # principal from what it injected. Redirecting to login would land right
+        # back here and loop forever, so fail loudly instead — _principal() has
+        # logged which check rejected it.
+        if request.headers.get("X-MS-CLIENT-PRINCIPAL") or \
+                request.headers.get("X-MS-CLIENT-PRINCIPAL-ID"):
+            app.logger.error("upload auth: signed in but principal unusable — "
+                             "refusing to redirect (would loop)")
+            if request.method in ("GET", "HEAD"):
+                return render_template("unavailable.html", message=(
+                    "You are signed in, but this site could not read your "
+                    "identity from the sign-in. Nothing was uploaded. This is a "
+                    "configuration problem, not something you did wrong.")), 403
+            return upload_error(403, "principal_unusable",
+                                "Signed in, but your identity could not be read.")
         if request.method in ("GET", "HEAD"):
             target = urllib.parse.quote(request.full_path.rstrip("?"), safe="/")
             return redirect(f"/.auth/login/aad?post_login_redirect_uri={target}")
