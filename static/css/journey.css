@@ -196,6 +196,13 @@ body.t-night .xlights circle{filter:brightness(1.8) drop-shadow(0 0 4px currentC
   cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(30,36,22,.15);
   padding:0; color:var(--ink);}
 .sound-btn:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+/* same pill as .pawcounter so the HUD reads as one cluster */
+.upload-btn{display:flex; align-items:center; gap:8px; background:rgba(238,240,224,.9); border:1px solid #D8D6BC;
+  border-radius:999px; padding:7px 14px 7px 10px; font-size:13px; color:var(--ink); text-decoration:none;
+  box-shadow:0 6px 18px rgba(30,36,22,.15); transition:background .3s, transform .3s; white-space:nowrap;}
+.upload-btn svg{display:block; flex:none;}
+.upload-btn:hover{background:rgb(238,240,224); transform:translateY(-1px);}
+.upload-btn:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
 .sound-btn .on-icon{display:none;}
 .sound-btn.playing .on-icon{display:block;}
 .sound-btn.playing .off-icon{display:none;}
