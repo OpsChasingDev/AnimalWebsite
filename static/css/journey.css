@@ -222,7 +222,7 @@ body.t-dusk #skytint{background:linear-gradient(180deg, rgba(255,196,140,.55), r
 body.t-night #skytint{background:linear-gradient(180deg, rgba(88,100,140,.85), rgba(104,114,148,.8) 55%, rgba(96,106,136,.82));}
 #stars{position:fixed; left:0; right:0; top:0; height:34vh; z-index:2; pointer-events:none; opacity:0; transition:opacity 2s;}
 body.t-night #stars{opacity:1;}
-.star{position:absolute; border-radius:50%; background:#EDEBE2; animation:twinkle 4s ease-in-out infinite;}
+#stars .star{position:absolute; border-radius:50%; background:#EDEBE2; animation:twinkle 4s ease-in-out infinite;}
 @keyframes twinkle{0%,100%{opacity:var(--o)}50%{opacity:calc(var(--o)*0.3)}}
 .firefly{position:fixed; width:4px; height:4px; border-radius:50%; background:#EFD98A; z-index:15;
   box-shadow:0 0 8px 2px rgba(239,217,138,.7); pointer-events:none; animation:fdrift var(--dur) ease-in-out infinite alternate;}
@@ -278,5 +278,5 @@ body.t-night #stars{opacity:1;}
 @media (prefers-reduced-motion: reduce){
   .intro .hint, .cloudshadow, .flutter, .flutter svg, .home-smoke, .wpart,
   .firefly, .bird svg{animation:none;}
-  .bb,.fanpop,.fanmore,#fanOverlay,.endnote,.lore-chip{transition:none;}
+  .bb,.bb-camp .frame,.deer g,.fanpop,.fanmore,#fanOverlay,.endnote,.lore-chip{transition:none;}
 }
