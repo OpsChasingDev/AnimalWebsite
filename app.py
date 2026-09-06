@@ -103,6 +103,16 @@ def _load_alpine_manifest(path) -> dict:
 ALPINE_MANIFEST = _load_alpine_manifest(ALPINE_MANIFEST_PATH)
 
 
+def _on_app_service_home() -> bool:
+    """True when running on App Service Linux with persistent /home.
+
+    Reads the environment live on every call (not the import-time
+    ON_APP_SERVICE global) so tests that patch os.environ after import, and
+    the fixture guard in get_model(), stay accurate.
+    """
+    return bool(os.environ.get("WEBSITE_INSTANCE_ID")) and os.environ.get("HOME") == "/home"
+
+
 def _resolve_state_dir() -> Path:
     """Where the things that must outlive a container recycle go.
 
@@ -117,7 +127,7 @@ def _resolve_state_dir() -> Path:
     override = os.environ.get("SITE_STATE_DIR")
     if override:
         candidates.append(Path(override))
-    if os.environ.get("WEBSITE_INSTANCE_ID") and os.environ.get("HOME") == "/home":
+    if _on_app_service_home():
         candidates.append(Path("/home/data/petsite"))
     candidates.append(THUMB_DIR)
     for path in candidates:
@@ -583,7 +593,7 @@ def get_model() -> dict:
     # leftover setting on the real site must not start serving fake data.
     fixture_path = os.environ.get("JOURNEY_FIXTURE")
     if fixture_path:
-        if os.environ.get("WEBSITE_INSTANCE_ID") and os.environ.get("HOME") == "/home":
+        if _on_app_service_home():
             if not _fixture_logged["ignored"]:
                 _fixture_logged["ignored"] = True
                 app.logger.warning(
