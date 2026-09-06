@@ -65,7 +65,9 @@ pets/
   `static/images/alpine/manifest.json` (file names, pixel sizes and byte
   budgets for every asset). Until real art lands, that folder holds
   deterministic placeholder art. See `docs/alpine-art-brief.md` for the
-  style sheet, palettes and full asset list.
+  style sheet, palettes and full asset list. Append `?ground=flat` to the
+  trail URL to roll the ground back to the pre-art flat gradient look — the
+  phone-budget rollback if the painted overlays ever need to come off.
 
 ## Development
 

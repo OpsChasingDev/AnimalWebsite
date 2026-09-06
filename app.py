@@ -69,6 +69,32 @@ SAFE_IMG_PATH_RE = re.compile(
 # Accent fallback rotation for pets whose meta.json omits "color".
 FALLBACK_COLORS = ["#8A4E76", "#C9718A", "#3F7D77", "#C98A3D", "#5B7FA6", "#A6702E"]
 
+ALPINE_MANIFEST_PATH = Path(__file__).parent / "static" / "images" / "alpine" / "manifest.json"
+_EMPTY_ALPINE_MANIFEST = {"version": 1, "assets": []}
+
+
+def _load_alpine_manifest(path) -> dict:
+    """Read the alpine art manifest once. A missing or corrupt manifest is not
+    fatal (KTD9): journey.js treats an empty manifest as the `?ground=flat`
+    state, so the ground still renders, just without the painted overlays.
+    Factored out (instead of inlined at import) so a unittest can point it at
+    a temp path without touching the real static/ tree.
+    """
+    try:
+        return json.loads(Path(path).read_text())
+    except OSError as e:
+        app.logger.error("alpine manifest %s unreadable (%s); using an empty manifest", path, e)
+    except ValueError as e:
+        app.logger.error("alpine manifest %s is not valid JSON (%s); using an empty manifest", path, e)
+    return dict(_EMPTY_ALPINE_MANIFEST)
+
+
+# Read once at import, like the season tables: the manifest almost never
+# changes at runtime (a real-art drop-in rewrites file contents and hashes,
+# not this file's shape), so there is no reason to re-parse it per request.
+ALPINE_MANIFEST = _load_alpine_manifest(ALPINE_MANIFEST_PATH)
+
+
 def _resolve_state_dir() -> Path:
     """Where the things that must outlive a container recycle go.
 
@@ -339,6 +365,12 @@ def _img_url(path: str, width: int) -> str:
     once the container is sealed those 403, so every published URL is now a path
     on this site (spec 6.3) — an external consumer must join it to the site's
     own origin.
+
+    journey.js keeps a second URL builder (assetUrl(), for ALPINE_MANIFEST
+    entries) on purpose (KTD9): this one proxies blob photos through auth and
+    thumbnailing, that one serves art shipped with the app straight from
+    static/ with a manifest-hash cache buster. Different origins, different
+    cache lifetimes — not to be merged.
     """
     return f"/img?path={urllib.parse.quote(path)}&w={width}"
 
@@ -634,7 +666,7 @@ def journey():
         model = get_model()
     except Exception:
         return _unavailable("The trail is still loading.")
-    return render_template("journey.html", journey=model)
+    return render_template("journey.html", journey=model, alpine=ALPINE_MANIFEST)
 
 
 @app.route("/api/journey")
