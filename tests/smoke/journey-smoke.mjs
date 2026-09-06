@@ -33,8 +33,15 @@
  *   - ?ground=flat (U4): the rollback gate never attaches anything.
  *   - a blocked-overlay run (U4): art requests aborted, the missingOverlays
  *     detector must fire, and the ground must not go blank.
+ *   - a blocked dirt/atlas run (U4): dirt-trail-tile.webp and
+ *     tree-rock-atlas.webp requests aborted, the missingOverlays detector
+ *     must fire, and the trail (located via the "you are here" paw marker)
+ *     must not go blank/transparent.
  *   - a lookahead snapshot (U4/KTD4): per-band attach state at a fixed
  *     camera position, checked against the visibility/lookahead windows.
+ *   - a DOM surface cross-check: an independent count of the actual
+ *     3D-transformed elements under #map, asserted equal to the
+ *     aliveSurfaces stat (which only counts array membership).
  *   - a seam check (AE2/KTD4): pixel continuity across a band boundary.
  *   - an AE5 palette check: ground colors at a spring/summer/autumn/winter
  *     camp stay within the season's documented palette plus ink.
@@ -42,6 +49,8 @@
  * Usage:
  *   node journey-smoke.mjs                 # run and check against baseline
  *   node journey-smoke.mjs --write-baseline # record current numbers as baseline
+ *     (refused if the run has any failing check — pass --force-baseline too
+ *     to record anyway)
  *   SMOKE_URL=http://localhost:8000 node journey-smoke.mjs   # use a server
  *     that's already running instead of spawning one (skips the AE2 pass,
  *     since that needs a second fixture the caller's server isn't using).
@@ -61,9 +70,16 @@ const PYTHON_BIN = path.join(REPO_ROOT, 'venv/bin/python');
 const ALPINE_DIR = path.join(REPO_ROOT, 'static/images/alpine');
 const PORT = 8000;
 const WRITE_BASELINE = process.argv.includes('--write-baseline');
+const FORCE_BASELINE = process.argv.includes('--force-baseline');
 const SWEEP_STEPS = 20;
 const CONSOLE_TIMEOUT_MS = 20000;
 const BANDH = 1600;  // must match journey.js's BANDH — no runtime way to read it from Node
+
+// Module-level (not scoped inside main()) so the SIGINT handler at the
+// bottom of this file can reach whichever child process main() currently
+// has running and kill it before the process exits, instead of orphaning a
+// detached Flask server that then answers for every later run.
+let activeServer = null;
 
 /* ---------- small process/server helpers ---------- */
 
@@ -83,25 +99,57 @@ function startServer(fixturePath) {
   return proc;
 }
 
+// Resolves once `proc`'s own exit event has fired (or immediately if it
+// already exited / was never started), so a caller that awaits this knows
+// the port is actually free before it tries to bind it again — no fixed
+// sleep-and-hope. A short fallback timeout guards against a detached child
+// whose 'exit' event, for whatever reason, never arrives.
 function stopServer(proc) {
-  if (!proc || proc.killed || proc.exitCode !== null) return;
-  try { process.kill(-proc.pid, 'SIGTERM'); } catch { /* already gone */ }
+  if (!proc || proc.killed || proc.exitCode !== null) return Promise.resolve();
+  return new Promise(resolve => {
+    let done = false;
+    const finish = () => { if (!done) { done = true; resolve(); } };
+    proc.once('exit', finish);
+    setTimeout(finish, 5000);
+    try { process.kill(-proc.pid, 'SIGTERM'); } catch { finish(); /* already gone */ }
+  });
 }
 
 async function waitForHttp200(url, timeoutMs, proc) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
+    // Checked BEFORE the fetch: once the child has exited, no response we
+    // might still receive can be trusted as coming from it (a stale process
+    // that was already listening on the port before we ever started would
+    // otherwise let a dead spawn look "up").
+    if (proc && proc.exitCode !== null) {
+      throw new Error(`server process exited early (code ${proc.exitCode}):\n${proc.getOutput()}`);
+    }
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
       if (res.status === 200) return;
     } catch { /* not up yet */ }
-    if (proc && proc.exitCode !== null) {
-      throw new Error(`server process exited early (code ${proc.exitCode}):\n${proc.getOutput()}`);
-    }
     await new Promise(r => setTimeout(r, 250));
   }
   throw new Error(`server did not answer 200 at ${url} within ${timeoutMs}ms` +
     (proc ? `\n--- server output ---\n${proc.getOutput()}` : ''));
+}
+
+// Refuses to spawn our own server on top of one that's already answering —
+// otherwise the fetch loop above would happily accept the stranger's 200 and
+// every measurement in this run would be against the wrong process (see the
+// orphan-on-Ctrl-C note on stopServer/SIGINT below).
+async function ensurePortFree(port) {
+  const url = `http://127.0.0.1:${port}/`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(800) });
+    throw new Error(
+      `port ${port} already answers (status ${res.status}) — stop that server first, ` +
+      `or it will be mistaken for the fixture server this script is about to start.`);
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith(`port ${port} already answers`)) throw err;
+    // fetch failed to connect at all (ECONNREFUSED / timeout) => port is free.
+  }
 }
 
 /* ---------- AE2: a fixture with twice the trail length ---------- */
@@ -347,6 +395,35 @@ async function runProfile(browser, baseUrl, { name, contextOptions, checkNoAnim,
     await checkAnim();
   }
 
+  // Independent DOM cross-check, taken once after the sweep settles: the
+  // aliveSurfaces stat is a proxy (aliveBands + aliveProps + aliveBbs, three
+  // arrays journey.js already tracks for its own culling), not a DOM walk —
+  // an element appended straight to #map by some path other than
+  // prop()/bbs.push()/the band loop would move that proxy not at all while
+  // still costing a real compositor layer. Both counts are read inside the
+  // same synchronous page.evaluate() so there's no window for a class/style
+  // change between them. Predicate, from journey.js/journey.css: bands are
+  // the `.map > svg` elements whose `style.display` journey.js toggles
+  // directly; props (which already include grove clusters — groves are
+  // pushed onto the same `props` array) get the same style.display toggle;
+  // billboards never touch style.display, they're shown/hidden purely by the
+  // `.bb.on` class, so that class is the predicate for them. The two
+  // `.cloudshadow` divs are also direct #map children with a live
+  // CSS-animation transform, but are deliberately excluded here (they match
+  // none of svg/.prop/.grove/.bb) rather than added into journey.js's
+  // aliveSurfaces — see the finding this check resolves: folding them into
+  // aliveSurfaces would raise desktop's count past the plan's fixed 43/44/42
+  // budget that the absolute ceilings below are pinned to, for two elements
+  // that were already present (and already uncounted) in that budget.
+  const domCheck = await page.evaluate(() => {
+    const map = document.getElementById('map');
+    const notHidden = el => el.style.display !== 'none';
+    const bands = Array.from(map.querySelectorAll(':scope > svg')).filter(notHidden).length;
+    const propsAndGroves = Array.from(map.querySelectorAll(':scope > .prop, :scope > .grove')).filter(notHidden).length;
+    const billboardsOn = map.querySelectorAll(':scope > .bb.on').length;
+    return { domSurfaces: bands + propsAndGroves + billboardsOn, aliveSurfaces: window.__journeyStats.aliveSurfaces };
+  });
+
   const [statsLog, longTasks, finalAttachTimes] = await page.evaluate(() =>
     [window.__statsLog, window.__longTasks,
       (window.__journeyStats && window.__journeyStats.attachTimes) || []]);
@@ -378,6 +455,8 @@ async function runProfile(browser, baseUrl, { name, contextOptions, checkNoAnim,
     aliveSurfacesMax: maxOf('aliveSurfaces'),
     missingOverlaysMax: maxOf('missingOverlays'),
     attachedOverlaysMax: maxOf('attachedOverlays'),
+    domSurfaces: domCheck.domSurfaces,
+    domSurfacesStatSnapshot: domCheck.aliveSurfaces,
     updateMsAvg: updateTimes.length ? updateTimes.reduce((a, b) => a + b, 0) / updateTimes.length : 0,
     updateMsWorst: updateTimes.length ? Math.max(...updateTimes) : 0,
     longTasks: sweepLongTasks.length,
@@ -398,6 +477,18 @@ function evalProfile(stats, { isLite, isReduced, isFlat, baseline }) {
   add('console errors == 0', stats.consoleErrors.length === 0,
     stats.consoleErrors.length ? stats.consoleErrors.slice(0, 3).join(' | ') : 'none');
   add('aliveBands <= 4', stats.aliveBandsMax <= 4, `max ${stats.aliveBandsMax}`);
+  // Absolute ceiling on top of the baseline comparison below: the plan's
+  // fixed GPU-surface budget (desktop 43 / lite 44 / reduced 42, zero new
+  // surfaces), so a rewritten baseline.json can never quietly raise it.
+  const surfaceCeiling = isLite ? 44 : isReduced ? 42 : 43;
+  add(`aliveSurfaces <= ${surfaceCeiling}`, stats.aliveSurfacesMax <= surfaceCeiling, `max ${stats.aliveSurfacesMax}`);
+  // DOM cross-check (taken once, post-sweep): the aliveSurfaces stat above is
+  // trusted only as far as it agrees with an independent count of the actual
+  // 3D-transformed elements under #map. Exact equality (tolerance 0) is
+  // expected — both counts are read in one synchronous page.evaluate() call,
+  // so there's no tick in between for either number to change.
+  add('DOM surface count == aliveSurfaces stat', stats.domSurfaces === stats.domSurfacesStatSnapshot,
+    `dom=${stats.domSurfaces} stat=${stats.domSurfacesStatSnapshot}`);
   add('missingOverlays == 0', stats.missingOverlaysMax === 0, `max ${stats.missingOverlaysMax}`);
   // Band tops fall in an 8900 px open interval (visibility + one band of
   // lookahead each side) over 1600 px bands, so 6 is the true worst case.
@@ -542,6 +633,81 @@ async function scenarioBlockedOverlay(browser, baseUrl) {
   };
 }
 
+/* ---------- U4 scenario: dirt/atlas requests blocked (sibling of
+   scenarioBlockedOverlay above) ---------- */
+// Unlike a blocked ground overlay — whose fallback is the always-present
+// season gradient underneath — a blocked dirt tile used to have no fallback
+// at all: url(#dirtN) paints transparent and the trail stroke disappeared
+// down to a faint ink edge + dots. This checks both halves of the fix: the
+// missingOverlays detector must notice (dirtState/atlasState folded in
+// alongside overlayState), and the trail must still read as painted, not
+// blank/transparent, degrading to the old flat-mode stroke instead.
+async function scenarioBlockedDirtAtlas(browser, baseUrl) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  // Trailing '*' matters: assetUrl() appends a cache-busting '?v=<hash>'
+  // query string (see journey.js), and an exact-match glob (as scenarioSeam
+  // and the AE5 palette check don't need, but this one does) wouldn't match
+  // that suffix — the same reason the overlay scenario above uses
+  // 'ground-overlay-*' rather than an exact filename.
+  await context.route('**/dirt-trail-tile.webp*', route => route.abort());
+  await context.route('**/tree-rock-atlas.webp*', route => route.abort());
+  const page = await context.newPage();
+  await page.addInitScript(installRecorder);
+  await page.goto(`${baseUrl}/?t=day`, { waitUntil: 'load' });
+  const maxY = await page.evaluate(() => Math.max(0, document.documentElement.scrollHeight - innerHeight));
+  await page.evaluate(y => window.scrollTo(0, y), Math.round(maxY * 0.4));
+  await settle(page);
+  // Same >1000ms-then-force-a-frame trick as scenarioBlockedOverlay: let the
+  // missingOverlays threshold actually elapse, then kick the (by-now-stopped)
+  // rAF loop once more so the hook recomputes against a current timestamp.
+  await page.waitForTimeout(1300);
+  await page.evaluate(() => window.dispatchEvent(new Event('scroll')));
+  await page.waitForTimeout(60);
+  const stats = await page.evaluate(() => window.__journeyStats);
+
+  // Locate the trail on screen via the "you are here" paw marker — it's
+  // positioned every frame at the camera's exact trail point (p.x, p.y in
+  // journey.js), so its screen rect IS the trail at this scroll position,
+  // regardless of which way the trail bends here. More precise than guessing
+  // a fixed viewport band, and it's the same anchor the page itself uses.
+  const pawRect = await page.evaluate(() => {
+    const r = document.querySelector('.pawmark').getBoundingClientRect();
+    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+  });
+  const overlayRects = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('.bb-camp.here, .fanpop, .lightbox.open, .intro, .meter, .hud-left, #minimap'))
+      .map(el => el.getBoundingClientRect())
+      .map(r => ({ left: r.left, right: r.right, top: r.top, bottom: r.bottom })));
+  const shot = await page.screenshot();
+  await context.close();
+
+  const vw = 1440, vh = 900;
+  const inOverlay = (x, y) => overlayRects.some(r => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom);
+  const pawCx = (pawRect.left + pawRect.right) / 2, pawCy = (pawRect.top + pawRect.bottom) / 2;
+  const points = [];
+  // A grid straddling the paw marker — the trail surface directly under
+  // "you are here" — not the whole viewport, since the dirt/atlas failure is
+  // specific to the trail stroke and ground-detail sprites, not the season
+  // ground on either side of it.
+  for (let gy = -4; gy <= 4 && points.length < 50; gy++) {
+    for (let gx = -6; gx <= 6 && points.length < 50; gx++) {
+      const x = Math.round(clamp(pawCx + gx * 14, 5, vw - 5));
+      const y = Math.round(clamp(pawCy + gy * 12, 5, vh - 5));
+      if (!inOverlay(x, y)) points.push([x, y]);
+    }
+  }
+  const pixels = samplePixels(shot, points);
+  const allSame = pixels.every(p => p[0] === pixels[0][0] && p[1] === pixels[0][1] && p[2] === pixels[0][2]);
+  const anyBlank = pixels.some(p => p[0] > 250 && p[1] > 250 && p[2] > 250);
+
+  return {
+    missingOverlays: stats.missingOverlays,
+    detectorFired: stats.missingOverlays > 0,
+    notAllOneColor: !allSame,
+    noBlankPixel: !anyBlank,
+  };
+}
+
 /* ---------- U4/AE2 scenario: seam continuity across a band boundary ---------- */
 
 async function scenarioSeam(browser, baseUrl) {
@@ -580,13 +746,13 @@ async function scenarioSeam(browser, baseUrl) {
   for (const y of [...seamRows, ...refRows]) for (const x of xs) points.push([x, y]);
   const pixels = samplePixels(shot, points);
 
-  const rowAvg = idx => {
-    const start = idx * xs.length;
+  const rowAvg = (idx, offset = 0) => {
+    const start = (idx + offset) * xs.length;
     const slice = pixels.slice(start, start + xs.length);
     return [0, 1, 2].map(k => slice.reduce((a, p) => a + p[k], 0) / slice.length);
   };
-  const rowDiffs = (rows) => {
-    const avgs = rows.map((_, i) => rowAvg(i));
+  const rowDiffs = (rows, offset = 0) => {
+    const avgs = rows.map((_, i) => rowAvg(i, offset));
     const diffs = [];
     for (let i = 1; i < avgs.length; i++) {
       diffs.push([0, 1, 2].reduce((a, k) => a + Math.abs(avgs[i][k] - avgs[i - 1][k]), 0) / 3);
@@ -595,17 +761,7 @@ async function scenarioSeam(browser, baseUrl) {
   };
 
   const seamDiffs = rowDiffs(seamRows);
-  const refDiffsRaw = pixels.slice(seamRows.length * xs.length);
-  // reuse rowAvg logic but offset into the ref block
-  const refAvgs = refRows.map((_, i) => {
-    const start = (seamRows.length + i) * xs.length;
-    const slice = pixels.slice(start, start + xs.length);
-    return [0, 1, 2].map(k => slice.reduce((a, p) => a + p[k], 0) / slice.length);
-  });
-  const refDiffs = [];
-  for (let i = 1; i < refAvgs.length; i++) {
-    refDiffs.push([0, 1, 2].reduce((a, k) => a + Math.abs(refAvgs[i][k] - refAvgs[i - 1][k]), 0) / 3);
-  }
+  const refDiffs = rowDiffs(refRows, seamRows.length);
 
   const maxSeamDiff = Math.max(...seamDiffs);
   const typicalDiff = refDiffs.reduce((a, b) => a + b, 0) / refDiffs.length;
@@ -713,19 +869,23 @@ async function main() {
   }
 
   const smokeUrlEnv = process.env.SMOKE_URL;
-  let server = null;
   let baseUrl = smokeUrlEnv;
-  if (!baseUrl) {
-    server = startServer(SAMPLE_FIXTURE);
-    baseUrl = `http://127.0.0.1:${PORT}`;
-    await waitForHttp200(`${baseUrl}/`, 20000, server);
-  }
 
   let browser;
   let allOk = true;
   const newBaseline = {};
 
+  // Server startup lives inside this try (not before it) so a startup
+  // timeout — waitForHttp200 throwing — still reaches the finally below and
+  // cleans up a spawned-but-never-answered child instead of orphaning it.
   try {
+    if (!baseUrl) {
+      await ensurePortFree(PORT);
+      activeServer = startServer(SAMPLE_FIXTURE);
+      baseUrl = `http://127.0.0.1:${PORT}`;
+      await waitForHttp200(`${baseUrl}/`, 20000, activeServer);
+    }
+
     browser = await chromium.launch();
 
     const profiles = [
@@ -782,6 +942,20 @@ async function main() {
       if (!r.detectorFired || !r.notAllOneColor || !r.noBlankPixel) allOk = false;
     }
 
+    // U4 scenario: dirt/atlas requests blocked — same shape as the overlay
+    // scenario above, but for the trail surface itself (previously had no
+    // fallback, no detector, no smoke coverage at all — see the fix in
+    // journey.js's non-flat band build).
+    {
+      const r = await scenarioBlockedDirtAtlas(browser, baseUrl);
+      console.log('\n=== U4: blocked dirt/atlas requests ===');
+      console.log(`missingOverlays=${r.missingOverlays}`);
+      console.log(`  [${r.detectorFired ? 'PASS' : 'FAIL'}] missingOverlays detector fired (missingOverlays > 0)`);
+      console.log(`  [${r.notAllOneColor ? 'PASS' : 'FAIL'}] sampled trail pixels are not all one color`);
+      console.log(`  [${r.noBlankPixel ? 'PASS' : 'FAIL'}] no sampled trail pixel is blank/white`);
+      if (!r.detectorFired || !r.notAllOneColor || !r.noBlankPixel) allOk = false;
+    }
+
     // U4/KTD4 scenario: lookahead attach/detach snapshot at a fixed camera position.
     {
       const r = await scenarioLookahead(browser, baseUrl);
@@ -825,15 +999,21 @@ async function main() {
     // and attached overlays <= 6.
     // Needs a second server pointed at the long fixture — skipped when the
     // caller supplied an already-running server via SMOKE_URL.
-    if (server) {
-      stopServer(server);
-      server = null;
+    if (activeServer) {
+      // Awaited: the AE2 server must not try to bind :8000 until the sample
+      // server's process has actually exited (its 'exit' event, not a fixed
+      // sleep), or the bind fails, the long-fixture child dies immediately,
+      // and AE2 silently measures whatever answered before it — see
+      // ensurePortFree below for the same race guarded a second way.
+      await stopServer(activeServer);
+      activeServer = null;
       const sample = JSON.parse(fs.readFileSync(SAMPLE_FIXTURE, 'utf8'));
       const longFixturePath = path.join(os.tmpdir(), `journey-sample-long-${process.pid}.json`);
       fs.writeFileSync(longFixturePath, JSON.stringify(makeLongFixture(sample)));
       try {
-        server = startServer(longFixturePath);
-        await waitForHttp200(`${baseUrl}/`, 20000, server);
+        await ensurePortFree(PORT);
+        activeServer = startServer(longFixturePath);
+        await waitForHttp200(`${baseUrl}/`, 20000, activeServer);
         const stats = await runProfile(browser, baseUrl,
           { name: 'AE2 (2x trail length, desktop)', contextOptions: { viewport: { width: 1440, height: 900 } } });
         const ok = stats.aliveBandsMax <= 4 && stats.attachedOverlaysMax <= 6;
@@ -850,19 +1030,35 @@ async function main() {
     }
   } finally {
     if (browser) await browser.close();
-    stopServer(server);
+    await stopServer(activeServer);
+    activeServer = null;
   }
 
   if (WRITE_BASELINE) {
-    fs.writeFileSync(BASELINE_PATH, JSON.stringify(newBaseline, null, 2) + '\n');
-    console.log(`\nWrote baseline to ${BASELINE_PATH}`);
+    // A failing run must never become the new reference — that would let a
+    // real regression (or a widened surface-count ceiling) quietly pass on
+    // every later run. --force-baseline is the explicit, deliberate override.
+    if (allOk || FORCE_BASELINE) {
+      fs.writeFileSync(BASELINE_PATH, JSON.stringify(newBaseline, null, 2) + '\n');
+      console.log(`\nWrote baseline to ${BASELINE_PATH}${allOk ? '' : ' (forced despite failing checks)'}`);
+    } else {
+      console.log(`\nRefusing to write baseline: this run had failing checks (SMOKE FAILED). ` +
+        `Fix the regression, or pass --force-baseline to record it anyway.`);
+    }
   }
 
   console.log(`\n${allOk ? 'ALL PROFILES PASS' : 'SMOKE FAILED'}`);
   process.exit(allOk ? 0 : 1);
 }
 
-process.on('SIGINT', () => process.exit(130));
+process.on('SIGINT', () => {
+  // Kill the process group before exiting — process.kill() here is
+  // synchronous (it just sends SIGTERM), so this reliably runs before
+  // process.exit(), even though stopServer()'s returned promise (which
+  // resolves on the child's own 'exit' event) has no chance to settle.
+  stopServer(activeServer);
+  process.exit(130);
+});
 
 main().catch(err => {
   console.error('journey-smoke: fatal error:', err);

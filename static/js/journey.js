@@ -125,6 +125,13 @@
   const DIRT_URL = assetUrl('dirt-trail-tile.webp');
   const SNOW_URL = assetUrl('ground-overlay-winter.webp');
   const ATLAS_URL = assetUrl('tree-rock-atlas.webp');
+  // Atlas load state, tracked once globally (one shared asset decoded once
+  // for every band, not per-band) via a representative probe Image rather
+  // than every detail <image> tag; folded into missingOverlays below the
+  // same way overlayState/dirtState are. Defaults to 'painted' (no known
+  // failure) in flat mode or when the manifest carries no atlas, so neither
+  // ever falsely flags.
+  let atlasState = (GROUND_FLAT || !ATLAS_URL) ? 'painted' : 'loading';
   // Nested-svg crop idiom (also used by prop() for set dressing): an <image> can't crop to an
   // atlas cell on its own, so each sprite is a small svg viewport whose
   // viewBox is the cell's rect in atlas pixels, with one full-atlas <image>
@@ -293,7 +300,7 @@
     const band = {
       svg: bsvg, y0, overlayFile, overlayImg, dirtImg, snowImg,
       overlayUrl: assetUrl(overlayFile), dirtFill: `url(#dirt${bi})`,
-      attached: false, attachedAt: 0, overlayState: 'loading', detailImgs: [],
+      attached: false, attachedAt: 0, overlayState: 'loading', dirtState: 'loading', detailImgs: [],
     };
     // Paint-state listeners are wired once at build so a late attach only
     // has to flip href. Chromium quirk: a <pattern>'s <image> whose href
@@ -304,8 +311,11 @@
     // missingOverlays keeps detecting it.
     overlayImg.addEventListener('load', () => { band.overlayState = 'painted'; });
     overlayImg.addEventListener('error', () => { band.overlayState = 'failed'; overlayImg.removeAttribute('href'); });
-    // Same quirk, same fix, for the dirt-trail pattern.
-    dirtImg.addEventListener('error', () => { dirtImg.removeAttribute('href'); });
+    // Same quirk, same fix, for the dirt-trail pattern; dirtState feeds
+    // missingOverlays the same way overlayState does, so a failed dirt tile
+    // is caught by the same runtime detector as a failed ground overlay.
+    dirtImg.addEventListener('load', () => { band.dirtState = 'painted'; });
+    dirtImg.addEventListener('error', () => { band.dirtState = 'failed'; dirtImg.removeAttribute('href'); });
     bands.push(band);
   }
   const bandFor = yy => clamp(Math.floor((yy - BAND0) / BANDH), 0, NB - 1);
@@ -408,6 +418,18 @@
       bandPath.setAttribute('stroke-linecap', 'round'); bandPath.setAttribute('opacity', '0.12');
       b.svg.appendChild(bandPath);
     } else {
+      // Fallback stroke, painted first (i.e. under everything else in this
+      // band): if the dirt tile 404s, url(#dirtN) paints transparent and —
+      // without this — the trail vanishes into the season ground, leaving
+      // only the faint ink edge and dots below. This is the old flat-mode
+      // stroke/opacity, so a failed tile degrades to today's look instead of
+      // disappearing. No rnd() call; one extra path inside the existing band
+      // <svg> (not a new element outside it, so no new GPU surface).
+      const fallbackPath = document.createElementNS(NS, 'path');
+      fallbackPath.setAttribute('d', dStr); fallbackPath.setAttribute('fill', 'none');
+      fallbackPath.setAttribute('stroke', '#5C5137'); fallbackPath.setAttribute('stroke-width', '120');
+      fallbackPath.setAttribute('stroke-linecap', 'round'); fallbackPath.setAttribute('opacity', '0.12');
+      b.svg.appendChild(fallbackPath);
       // Painted dirt trail: an ink edge line drawn first, slightly
       // wider than the trail stroke so it peeks out as an outline, then the
       // dirt-tile pattern on top at full opacity. dStr geometry is unchanged.
@@ -434,7 +456,7 @@
     }
     const dotsPath = document.createElementNS(NS, 'path');
     dotsPath.setAttribute('d', dStr); dotsPath.setAttribute('fill', 'none');
-    dotsPath.setAttribute('stroke', INK_COLOR); dotsPath.setAttribute('stroke-width', '13');
+    dotsPath.setAttribute('stroke', GROUND_FLAT ? '#6B5C40' : INK_COLOR); dotsPath.setAttribute('stroke-width', '13');
     dotsPath.setAttribute('stroke-linecap', 'round'); dotsPath.setAttribute('stroke-dasharray', '0.01 42');
     dotsPath.setAttribute('opacity', GROUND_FLAT ? '1' : '.45');
     b.svg.appendChild(dotsPath);
@@ -536,8 +558,17 @@
   if (!GROUND_FLAT){
     const preload = new Set(bands.map(b => b.overlayFile));
     preload.forEach(f => { const u = assetUrl(f); if (u){ const im = new Image(); im.src = u; } });
-    [DIRT_URL, ATLAS_URL, winterRanges.length ? SNOW_URL : null]
+    [DIRT_URL, winterRanges.length ? SNOW_URL : null]
       .forEach(u => { if (u){ const im = new Image(); im.src = u; } });
+    // Atlas preload doubles as the atlasState probe (see its declaration
+    // above): one Image, load/error listeners flip the shared state that
+    // every band's missingOverlays check reads.
+    if (ATLAS_URL){
+      const atlasProbe = new Image();
+      atlasProbe.addEventListener('load', () => { atlasState = 'painted'; });
+      atlasProbe.addEventListener('error', () => { atlasState = 'failed'; });
+      atlasProbe.src = ATLAS_URL;
+    }
   }
 
   // Debug hook for the smoke script's lookahead scenario: a plain
@@ -1382,7 +1413,7 @@
           b.attachedAt = statT0;
           attachTimes.push(b.attachedAt);
           if (attachTimes.length > 64) attachTimes.shift();
-          b.overlayState = 'loading';
+          b.overlayState = 'loading'; b.dirtState = 'loading';
           if (b.overlayUrl) b.overlayImg.setAttribute('href', b.overlayUrl);
           if (b.snowImg && SNOW_URL) b.snowImg.setAttribute('href', SNOW_URL);
           if (DIRT_URL) b.dirtImg.setAttribute('href', DIRT_URL);
@@ -1395,8 +1426,15 @@
         }
       }
       if (b.attached) attachedOverlays++;
-      if (vis && b.attached && b.overlayState !== 'painted' &&
-          statT0 - b.attachedAt > 1000) missingOverlays++;
+      if (vis && b.attached && statT0 - b.attachedAt > 1000){
+        // Same detector as before (a visible, long-attached band that hasn't
+        // reported 'painted'), extended to the dirt-trail pattern and — for
+        // bands that actually place atlas sprites — the shared tree/rock
+        // atlas, so a failed dirt or atlas tile is caught exactly like a
+        // failed ground overlay.
+        const atlasMissing = b.detailImgs.length > 0 && atlasState !== 'painted';
+        if (b.overlayState !== 'painted' || b.dirtState !== 'painted' || atlasMissing) missingOverlays++;
+      }
     });
 
     {
