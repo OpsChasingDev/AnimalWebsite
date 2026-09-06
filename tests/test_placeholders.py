@@ -10,8 +10,10 @@ of the real manifest shared read-only across the slower tests via a
 session-scoped fixture) — the committed manifest and art under
 static/images/alpine/ are only ever read, never written, by this file.
 """
+import hashlib
 import json
 import random
+import re
 import shutil
 from pathlib import Path
 
@@ -66,6 +68,21 @@ def generated(tmp_path_factory):
     out_dir = work / "out"
     gen.generate(manifest_path, out_dir)
     return manifest_path, out_dir
+
+
+def _remove_hash_field(manifest_path: Path, file_name: str):
+    """Directly edit the raw manifest text to delete one entry's `"hash"`
+    key/value line entirely, simulating a hand-edited manifest that has not
+    been rehashed yet (the art brief treats this as a normal state, not a
+    contrived one)."""
+    text = manifest_path.read_text()
+    file_pat = re.compile(r'"file"\s*:\s*"' + re.escape(file_name) + r'"')
+    m = file_pat.search(text)
+    assert m, f"no entry for {file_name!r} in manifest"
+    hash_line_pat = re.compile(r'\n[ \t]*"hash"\s*:\s*"[0-9a-f]*",?')
+    hm = hash_line_pat.search(text, m.end())
+    assert hm, f"no hash field to remove for {file_name!r}"
+    manifest_path.write_text(text[:hm.start()] + text[hm.end():])
 
 
 def _fresh_case(tmp_path, generated_fixture, name="case"):
@@ -154,6 +171,61 @@ def test_rehash_changes_only_touched_entry(tmp_path, generated):
     assert after_hashes[victim] != before_hashes[victim]
     for file_name, old_hash in before_hashes.items():
         if file_name != victim:
+            assert after_hashes[file_name] == old_hash, f"{file_name} hash changed unexpectedly"
+
+
+# ---------------------------------------------------------------------------
+# 4b. If an entry has no `"hash"` key at all (a hand-edited manifest, which
+#     the art brief treats as normal), --rehash inserts one for that entry
+#     only and leaves every other entry's hash untouched. Regression for a
+#     bug where an unbounded forward search for the next `"hash"` field
+#     would find and overwrite the *following* entry's hash instead.
+# ---------------------------------------------------------------------------
+def test_rehash_fills_missing_hash_without_touching_neighbours(tmp_path, generated):
+    manifest_path, work = _fresh_case(tmp_path, generated)
+    before = gen.load_manifest(manifest_path)
+    before_hashes = {a["file"]: a.get("hash") for a in before["assets"]}
+
+    victim = "grass-clumps.webp"
+    _remove_hash_field(manifest_path, victim)
+    mid = {a["file"]: a for a in gen.load_manifest(manifest_path)["assets"]}
+    assert not mid[victim].get("hash"), "test setup should have removed the hash key"
+
+    expected_hash = hashlib.sha256((work / victim).read_bytes()).hexdigest()[:gen.HASH_LEN]
+
+    changed = gen.rehash(manifest_path, work, only=victim, quiet=True)
+    assert changed == [victim], changed
+
+    after = gen.load_manifest(manifest_path)
+    after_hashes = {a["file"]: a.get("hash") for a in after["assets"]}
+    assert after_hashes[victim] == expected_hash
+    for file_name, old_hash in before_hashes.items():
+        if file_name != victim:
+            assert after_hashes[file_name] == old_hash, f"{file_name} hash changed unexpectedly"
+
+
+# ---------------------------------------------------------------------------
+# 4c. The same missing-hash case on the manifest's LAST entry must not
+#     raise (the old unbounded search had nothing left to find and would
+#     error out instead of inserting a hash).
+# ---------------------------------------------------------------------------
+def test_rehash_missing_hash_on_last_entry_does_not_raise(tmp_path, generated):
+    manifest_path, work = _fresh_case(tmp_path, generated)
+    before = gen.load_manifest(manifest_path)
+    last_file = before["assets"][-1]["file"]
+    before_hashes = {a["file"]: a.get("hash") for a in before["assets"]}
+
+    _remove_hash_field(manifest_path, last_file)
+
+    expected_hash = hashlib.sha256((work / last_file).read_bytes()).hexdigest()[:gen.HASH_LEN]
+    changed = gen.rehash(manifest_path, work, only=last_file, quiet=True)
+    assert changed == [last_file], changed
+
+    after = gen.load_manifest(manifest_path)
+    after_hashes = {a["file"]: a.get("hash") for a in after["assets"]}
+    assert after_hashes[last_file] == expected_hash
+    for file_name, old_hash in before_hashes.items():
+        if file_name != last_file:
             assert after_hashes[file_name] == old_hash, f"{file_name} hash changed unexpectedly"
 
 

@@ -458,9 +458,6 @@ def draw_grass(iw, ih, rng):
     return img
 
 
-_ATLAS_SUBJECTS = None  # populated below, after the draw_* functions exist
-
-
 def _tree_rock_cell(name, iw, ih, rng):
     if name.startswith("spruce-tall") or name.startswith("spruce-short"):
         return draw_spruce(iw, ih, rng, bare=name.endswith("-d"))
@@ -609,10 +606,38 @@ def draw_asset(asset: dict, cell_padding_px: int) -> Image.Image:
     raise ValueError(f"no drawing routine for role {role!r}")
 
 
+def _entry_end(text: str, start: int) -> int:
+    """Return the index of the closing `}` of the JSON object that opened
+    somewhere before `start` and is still open at `start` (i.e. the end of
+    the entry containing position `start`), by tracking bracket/brace depth
+    forward from `start`. Any nested object/array inside the entry (e.g. a
+    `"cells"` list) is balanced before we get there, so the first `}` or `]`
+    seen at depth 0 is the entry's own closing brace."""
+    depth = 0
+    i, n = start, len(text)
+    while i < n:
+        c = text[i]
+        if c in "{[":
+            depth += 1
+        elif c in "}]":
+            if depth == 0:
+                return i
+            depth -= 1
+        i += 1
+    return n
+
+
 def _apply_hashes(manifest_path: Path, file_hashes: dict) -> list:
     """Rewrite only the `"hash": "..."` value for each file in file_hashes,
     leaving every other byte of the manifest untouched (key order, 2-space
-    indent, one-line cell entries, trailing newline all survive as-is)."""
+    indent, one-line cell entries, trailing newline all survive as-is).
+
+    The hash field is looked for only inside the matched entry's own
+    object (bounded by that entry's closing `}`), never beyond it, so an
+    entry with no `"hash"` key can never cause a neighbouring entry's hash
+    to be found and rewritten instead. If the entry has no `"hash"` key at
+    all, one is inserted immediately after its `"file"` line, matching that
+    line's indentation and comma style."""
     manifest_path = Path(manifest_path)
     text = manifest_path.read_text()
     changed = []
@@ -621,14 +646,25 @@ def _apply_hashes(manifest_path: Path, file_hashes: dict) -> list:
         m = file_pat.search(text)
         if not m:
             raise ValueError(f"manifest has no entry for {file_name!r}")
+        entry_end = _entry_end(text, m.end())
         hash_pat = re.compile(r'("hash"\s*:\s*")([0-9a-f]*)(")')
-        hm = hash_pat.search(text, m.end())
-        if not hm:
-            raise ValueError(f"could not find a hash field for {file_name!r}")
-        old_hash = hm.group(2)
-        if old_hash != new_hash:
+        hm = hash_pat.search(text, m.end(), entry_end)
+        if hm:
+            old_hash = hm.group(2)
+            if old_hash != new_hash:
+                changed.append(file_name)
+            text = text[:hm.start()] + hm.group(1) + new_hash + hm.group(3) + text[hm.end():]
+        else:
+            # No "hash" key in this entry at all: insert one right after
+            # the "file" line, matching its indent and comma placement.
+            line_start = text.rfind("\n", 0, m.start()) + 1
+            indent = text[line_start:m.start()]
+            line_end = text.index("\n", m.end())
+            following = text[line_end + 1:].lstrip()
+            comma = "" if following.startswith("}") else ","
+            new_line = f'{indent}"hash": "{new_hash}"{comma}\n'
+            text = text[:line_end + 1] + new_line + text[line_end + 1:]
             changed.append(file_name)
-        text = text[:hm.start()] + hm.group(1) + new_hash + hm.group(3) + text[hm.end():]
     manifest_path.write_text(text)
     return changed
 
