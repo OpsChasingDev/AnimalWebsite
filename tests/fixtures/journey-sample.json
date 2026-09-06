@@ -1,0 +1,825 @@
+{
+  "generated": "2024-03-01T00:00:00Z",
+  "trailhead_month": 24233,
+  "now_month": 24290,
+  "pets": [
+    {
+      "slug": "pepper",
+      "name": "Pepper",
+      "color": "#8A4E76",
+      "born": "2015-04",
+      "joined": "2019-06",
+      "passed": null,
+      "bio": "Founding member, born to lead the pack up any trail.",
+      "headshot": "pepper/headshot.jpg",
+      "photos": [
+        {
+          "file": "2020-04_pepper-camp1-0.jpg",
+          "blob": "pepper/gallery/2020-04_pepper-camp1-0.jpg",
+          "url": "/img?path=pepper/gallery/2020-04_pepper-camp1-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2020-04_pepper-camp1-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2020-04_pepper-camp1-0.jpg&w=1200",
+          "taken": "2020-04-10",
+          "dog": "pepper",
+          "caption": "Camp 1, spring 2020 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2020-07_pepper-camp2-0.jpg",
+          "blob": "pepper/gallery/2020-07_pepper-camp2-0.jpg",
+          "url": "/img?path=pepper/gallery/2020-07_pepper-camp2-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2020-07_pepper-camp2-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2020-07_pepper-camp2-0.jpg&w=1200",
+          "taken": "2020-07-10",
+          "dog": "pepper",
+          "caption": "Camp 2, summer 2020 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2020-10_pepper-camp3-0.jpg",
+          "blob": "pepper/gallery/2020-10_pepper-camp3-0.jpg",
+          "url": "/img?path=pepper/gallery/2020-10_pepper-camp3-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2020-10_pepper-camp3-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2020-10_pepper-camp3-0.jpg&w=1200",
+          "taken": "2020-10-10",
+          "dog": "pepper",
+          "caption": "Camp 3, autumn 2020 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2021-01_pepper-camp4-0.jpg",
+          "blob": "pepper/gallery/2021-01_pepper-camp4-0.jpg",
+          "url": "/img?path=pepper/gallery/2021-01_pepper-camp4-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2021-01_pepper-camp4-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2021-01_pepper-camp4-0.jpg&w=1200",
+          "taken": "2021-01-10",
+          "dog": "pepper",
+          "caption": "Camp 4, winter 2021 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2021-04_pepper-camp5-0.jpg",
+          "blob": "pepper/gallery/2021-04_pepper-camp5-0.jpg",
+          "url": "/img?path=pepper/gallery/2021-04_pepper-camp5-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2021-04_pepper-camp5-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2021-04_pepper-camp5-0.jpg&w=1200",
+          "taken": "2021-04-10",
+          "dog": "pepper",
+          "caption": "Camp 5, spring 2021 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2021-07_pepper-camp6-0.jpg",
+          "blob": "pepper/gallery/2021-07_pepper-camp6-0.jpg",
+          "url": "/img?path=pepper/gallery/2021-07_pepper-camp6-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2021-07_pepper-camp6-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2021-07_pepper-camp6-0.jpg&w=1200",
+          "taken": "2021-07-10",
+          "dog": "pepper",
+          "caption": "Camp 6, summer 2021 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2021-10_pepper-camp7-0.jpg",
+          "blob": "pepper/gallery/2021-10_pepper-camp7-0.jpg",
+          "url": "/img?path=pepper/gallery/2021-10_pepper-camp7-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2021-10_pepper-camp7-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2021-10_pepper-camp7-0.jpg&w=1200",
+          "taken": "2021-10-10",
+          "dog": "pepper",
+          "caption": "Camp 7, autumn 2021 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2022-01_pepper-camp8-0.jpg",
+          "blob": "pepper/gallery/2022-01_pepper-camp8-0.jpg",
+          "url": "/img?path=pepper/gallery/2022-01_pepper-camp8-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2022-01_pepper-camp8-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2022-01_pepper-camp8-0.jpg&w=1200",
+          "taken": "2022-01-10",
+          "dog": "pepper",
+          "caption": "Camp 8, winter 2022 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2022-04_pepper-camp9-0.jpg",
+          "blob": "pepper/gallery/2022-04_pepper-camp9-0.jpg",
+          "url": "/img?path=pepper/gallery/2022-04_pepper-camp9-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2022-04_pepper-camp9-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2022-04_pepper-camp9-0.jpg&w=1200",
+          "taken": "2022-04-10",
+          "dog": "pepper",
+          "caption": "Camp 9, spring 2022 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2022-07_pepper-camp10-0.jpg",
+          "blob": "pepper/gallery/2022-07_pepper-camp10-0.jpg",
+          "url": "/img?path=pepper/gallery/2022-07_pepper-camp10-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2022-07_pepper-camp10-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2022-07_pepper-camp10-0.jpg&w=1200",
+          "taken": "2022-07-10",
+          "dog": "pepper",
+          "caption": "Camp 10, summer 2022 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2022-10_pepper-camp11-0.jpg",
+          "blob": "pepper/gallery/2022-10_pepper-camp11-0.jpg",
+          "url": "/img?path=pepper/gallery/2022-10_pepper-camp11-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2022-10_pepper-camp11-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2022-10_pepper-camp11-0.jpg&w=1200",
+          "taken": "2022-10-10",
+          "dog": "pepper",
+          "caption": "Camp 11, autumn 2022 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2023-01_pepper-camp12-0.jpg",
+          "blob": "pepper/gallery/2023-01_pepper-camp12-0.jpg",
+          "url": "/img?path=pepper/gallery/2023-01_pepper-camp12-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2023-01_pepper-camp12-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2023-01_pepper-camp12-0.jpg&w=1200",
+          "taken": "2023-01-10",
+          "dog": "pepper",
+          "caption": "Camp 12, winter 2023 \u2014 pepper on the trail."
+        }
+      ],
+      "headshot_url": "/img?path=pepper/headshot.jpg&w=1200",
+      "headshot_thumb": "/img?path=pepper/headshot.jpg&w=480",
+      "headshot_large": "/img?path=pepper/headshot.jpg&w=800"
+    },
+    {
+      "slug": "juniper",
+      "name": "Juniper",
+      "color": "#3F7D77",
+      "born": "2014-11",
+      "joined": "2019-06",
+      "passed": "2023-11",
+      "bio": "The other half of the union; steady, patient, missed.",
+      "headshot": "juniper/headshot.jpg",
+      "photos": [
+        {
+          "file": "2020-04_juniper-camp1-1.jpg",
+          "blob": "juniper/gallery/2020-04_juniper-camp1-1.jpg",
+          "url": "/img?path=juniper/gallery/2020-04_juniper-camp1-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2020-04_juniper-camp1-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2020-04_juniper-camp1-1.jpg&w=1200",
+          "taken": "2020-04-13",
+          "dog": "juniper",
+          "caption": "Camp 1, spring 2020 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2020-07_juniper-camp2-1.jpg",
+          "blob": "juniper/gallery/2020-07_juniper-camp2-1.jpg",
+          "url": "/img?path=juniper/gallery/2020-07_juniper-camp2-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2020-07_juniper-camp2-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2020-07_juniper-camp2-1.jpg&w=1200",
+          "taken": "2020-07-13",
+          "dog": "juniper",
+          "caption": "Camp 2, summer 2020 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2020-10_juniper-camp3-1.jpg",
+          "blob": "juniper/gallery/2020-10_juniper-camp3-1.jpg",
+          "url": "/img?path=juniper/gallery/2020-10_juniper-camp3-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2020-10_juniper-camp3-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2020-10_juniper-camp3-1.jpg&w=1200",
+          "taken": "2020-10-13",
+          "dog": "juniper",
+          "caption": "Camp 3, autumn 2020 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2021-01_juniper-camp4-1.jpg",
+          "blob": "juniper/gallery/2021-01_juniper-camp4-1.jpg",
+          "url": "/img?path=juniper/gallery/2021-01_juniper-camp4-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2021-01_juniper-camp4-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2021-01_juniper-camp4-1.jpg&w=1200",
+          "taken": "2021-01-13",
+          "dog": "juniper",
+          "caption": "Camp 4, winter 2021 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2021-04_juniper-camp5-1.jpg",
+          "blob": "juniper/gallery/2021-04_juniper-camp5-1.jpg",
+          "url": "/img?path=juniper/gallery/2021-04_juniper-camp5-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2021-04_juniper-camp5-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2021-04_juniper-camp5-1.jpg&w=1200",
+          "taken": "2021-04-13",
+          "dog": "juniper",
+          "caption": "Camp 5, spring 2021 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2021-07_juniper-camp6-1.jpg",
+          "blob": "juniper/gallery/2021-07_juniper-camp6-1.jpg",
+          "url": "/img?path=juniper/gallery/2021-07_juniper-camp6-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2021-07_juniper-camp6-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2021-07_juniper-camp6-1.jpg&w=1200",
+          "taken": "2021-07-13",
+          "dog": "juniper",
+          "caption": "Camp 6, summer 2021 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2021-10_juniper-camp7-1.jpg",
+          "blob": "juniper/gallery/2021-10_juniper-camp7-1.jpg",
+          "url": "/img?path=juniper/gallery/2021-10_juniper-camp7-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2021-10_juniper-camp7-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2021-10_juniper-camp7-1.jpg&w=1200",
+          "taken": "2021-10-13",
+          "dog": "juniper",
+          "caption": "Camp 7, autumn 2021 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2022-01_juniper-camp8-1.jpg",
+          "blob": "juniper/gallery/2022-01_juniper-camp8-1.jpg",
+          "url": "/img?path=juniper/gallery/2022-01_juniper-camp8-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2022-01_juniper-camp8-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2022-01_juniper-camp8-1.jpg&w=1200",
+          "taken": "2022-01-13",
+          "dog": "juniper",
+          "caption": "Camp 8, winter 2022 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2022-04_juniper-camp9-1.jpg",
+          "blob": "juniper/gallery/2022-04_juniper-camp9-1.jpg",
+          "url": "/img?path=juniper/gallery/2022-04_juniper-camp9-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2022-04_juniper-camp9-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2022-04_juniper-camp9-1.jpg&w=1200",
+          "taken": "2022-04-13",
+          "dog": "juniper",
+          "caption": "Camp 9, spring 2022 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2022-07_juniper-camp10-1.jpg",
+          "blob": "juniper/gallery/2022-07_juniper-camp10-1.jpg",
+          "url": "/img?path=juniper/gallery/2022-07_juniper-camp10-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2022-07_juniper-camp10-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2022-07_juniper-camp10-1.jpg&w=1200",
+          "taken": "2022-07-13",
+          "dog": "juniper",
+          "caption": "Camp 10, summer 2022 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2022-10_juniper-camp11-1.jpg",
+          "blob": "juniper/gallery/2022-10_juniper-camp11-1.jpg",
+          "url": "/img?path=juniper/gallery/2022-10_juniper-camp11-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2022-10_juniper-camp11-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2022-10_juniper-camp11-1.jpg&w=1200",
+          "taken": "2022-10-13",
+          "dog": "juniper",
+          "caption": "Camp 11, autumn 2022 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2023-01_juniper-camp12-1.jpg",
+          "blob": "juniper/gallery/2023-01_juniper-camp12-1.jpg",
+          "url": "/img?path=juniper/gallery/2023-01_juniper-camp12-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2023-01_juniper-camp12-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2023-01_juniper-camp12-1.jpg&w=1200",
+          "taken": "2023-01-13",
+          "dog": "juniper",
+          "caption": "Camp 12, winter 2023 \u2014 juniper on the trail."
+        }
+      ],
+      "headshot_url": "/img?path=juniper/headshot.jpg&w=1200",
+      "headshot_thumb": "/img?path=juniper/headshot.jpg&w=480",
+      "headshot_large": "/img?path=juniper/headshot.jpg&w=800"
+    },
+    {
+      "slug": "scout",
+      "name": "Scout",
+      "color": "#C9718A",
+      "born": "2020-01",
+      "joined": "2021-03",
+      "passed": null,
+      "bio": "Joined the pack as a pup and never slowed down.",
+      "headshot": "scout/headshot.jpg",
+      "photos": [
+        {
+          "file": "2021-04_scout-camp5-2.jpg",
+          "blob": "scout/gallery/2021-04_scout-camp5-2.jpg",
+          "url": "/img?path=scout/gallery/2021-04_scout-camp5-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2021-04_scout-camp5-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2021-04_scout-camp5-2.jpg&w=1200",
+          "taken": "2021-04-16",
+          "dog": "scout",
+          "caption": "Camp 5, spring 2021 \u2014 scout on the trail."
+        },
+        {
+          "file": "2021-07_scout-camp6-2.jpg",
+          "blob": "scout/gallery/2021-07_scout-camp6-2.jpg",
+          "url": "/img?path=scout/gallery/2021-07_scout-camp6-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2021-07_scout-camp6-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2021-07_scout-camp6-2.jpg&w=1200",
+          "taken": "2021-07-16",
+          "dog": "scout",
+          "caption": "Camp 6, summer 2021 \u2014 scout on the trail."
+        },
+        {
+          "file": "2021-10_scout-camp7-2.jpg",
+          "blob": "scout/gallery/2021-10_scout-camp7-2.jpg",
+          "url": "/img?path=scout/gallery/2021-10_scout-camp7-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2021-10_scout-camp7-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2021-10_scout-camp7-2.jpg&w=1200",
+          "taken": "2021-10-16",
+          "dog": "scout",
+          "caption": "Camp 7, autumn 2021 \u2014 scout on the trail."
+        },
+        {
+          "file": "2022-01_scout-camp8-2.jpg",
+          "blob": "scout/gallery/2022-01_scout-camp8-2.jpg",
+          "url": "/img?path=scout/gallery/2022-01_scout-camp8-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2022-01_scout-camp8-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2022-01_scout-camp8-2.jpg&w=1200",
+          "taken": "2022-01-16",
+          "dog": "scout",
+          "caption": "Camp 8, winter 2022 \u2014 scout on the trail."
+        },
+        {
+          "file": "2022-04_scout-camp9-2.jpg",
+          "blob": "scout/gallery/2022-04_scout-camp9-2.jpg",
+          "url": "/img?path=scout/gallery/2022-04_scout-camp9-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2022-04_scout-camp9-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2022-04_scout-camp9-2.jpg&w=1200",
+          "taken": "2022-04-16",
+          "dog": "scout",
+          "caption": "Camp 9, spring 2022 \u2014 scout on the trail."
+        },
+        {
+          "file": "2022-07_scout-camp10-2.jpg",
+          "blob": "scout/gallery/2022-07_scout-camp10-2.jpg",
+          "url": "/img?path=scout/gallery/2022-07_scout-camp10-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2022-07_scout-camp10-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2022-07_scout-camp10-2.jpg&w=1200",
+          "taken": "2022-07-16",
+          "dog": "scout",
+          "caption": "Camp 10, summer 2022 \u2014 scout on the trail."
+        },
+        {
+          "file": "2022-10_scout-camp11-2.jpg",
+          "blob": "scout/gallery/2022-10_scout-camp11-2.jpg",
+          "url": "/img?path=scout/gallery/2022-10_scout-camp11-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2022-10_scout-camp11-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2022-10_scout-camp11-2.jpg&w=1200",
+          "taken": "2022-10-16",
+          "dog": "scout",
+          "caption": "Camp 11, autumn 2022 \u2014 scout on the trail."
+        },
+        {
+          "file": "2023-01_scout-camp12-2.jpg",
+          "blob": "scout/gallery/2023-01_scout-camp12-2.jpg",
+          "url": "/img?path=scout/gallery/2023-01_scout-camp12-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2023-01_scout-camp12-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2023-01_scout-camp12-2.jpg&w=1200",
+          "taken": "2023-01-16",
+          "dog": "scout",
+          "caption": "Camp 12, winter 2023 \u2014 scout on the trail."
+        }
+      ],
+      "headshot_url": "/img?path=scout/headshot.jpg&w=1200",
+      "headshot_thumb": "/img?path=scout/headshot.jpg&w=480",
+      "headshot_large": "/img?path=scout/headshot.jpg&w=800"
+    }
+  ],
+  "events": [
+    {
+      "type": "union",
+      "month": 24233,
+      "pets": [
+        "pepper",
+        "juniper"
+      ]
+    },
+    {
+      "type": "camp",
+      "month": 24243,
+      "season": "spring",
+      "year": 2020,
+      "label": "Spring 2020",
+      "photos": [
+        {
+          "file": "2020-04_pepper-camp1-0.jpg",
+          "blob": "pepper/gallery/2020-04_pepper-camp1-0.jpg",
+          "url": "/img?path=pepper/gallery/2020-04_pepper-camp1-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2020-04_pepper-camp1-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2020-04_pepper-camp1-0.jpg&w=1200",
+          "taken": "2020-04-10",
+          "dog": "pepper",
+          "caption": "Camp 1, spring 2020 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2020-04_juniper-camp1-1.jpg",
+          "blob": "juniper/gallery/2020-04_juniper-camp1-1.jpg",
+          "url": "/img?path=juniper/gallery/2020-04_juniper-camp1-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2020-04_juniper-camp1-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2020-04_juniper-camp1-1.jpg&w=1200",
+          "taken": "2020-04-13",
+          "dog": "juniper",
+          "caption": "Camp 1, spring 2020 \u2014 juniper on the trail."
+        }
+      ]
+    },
+    {
+      "type": "camp",
+      "month": 24246,
+      "season": "summer",
+      "year": 2020,
+      "label": "Summer 2020",
+      "photos": [
+        {
+          "file": "2020-07_pepper-camp2-0.jpg",
+          "blob": "pepper/gallery/2020-07_pepper-camp2-0.jpg",
+          "url": "/img?path=pepper/gallery/2020-07_pepper-camp2-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2020-07_pepper-camp2-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2020-07_pepper-camp2-0.jpg&w=1200",
+          "taken": "2020-07-10",
+          "dog": "pepper",
+          "caption": "Camp 2, summer 2020 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2020-07_juniper-camp2-1.jpg",
+          "blob": "juniper/gallery/2020-07_juniper-camp2-1.jpg",
+          "url": "/img?path=juniper/gallery/2020-07_juniper-camp2-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2020-07_juniper-camp2-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2020-07_juniper-camp2-1.jpg&w=1200",
+          "taken": "2020-07-13",
+          "dog": "juniper",
+          "caption": "Camp 2, summer 2020 \u2014 juniper on the trail."
+        }
+      ]
+    },
+    {
+      "type": "camp",
+      "month": 24249,
+      "season": "autumn",
+      "year": 2020,
+      "label": "Autumn 2020",
+      "photos": [
+        {
+          "file": "2020-10_pepper-camp3-0.jpg",
+          "blob": "pepper/gallery/2020-10_pepper-camp3-0.jpg",
+          "url": "/img?path=pepper/gallery/2020-10_pepper-camp3-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2020-10_pepper-camp3-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2020-10_pepper-camp3-0.jpg&w=1200",
+          "taken": "2020-10-10",
+          "dog": "pepper",
+          "caption": "Camp 3, autumn 2020 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2020-10_juniper-camp3-1.jpg",
+          "blob": "juniper/gallery/2020-10_juniper-camp3-1.jpg",
+          "url": "/img?path=juniper/gallery/2020-10_juniper-camp3-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2020-10_juniper-camp3-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2020-10_juniper-camp3-1.jpg&w=1200",
+          "taken": "2020-10-13",
+          "dog": "juniper",
+          "caption": "Camp 3, autumn 2020 \u2014 juniper on the trail."
+        }
+      ]
+    },
+    {
+      "type": "camp",
+      "month": 24252,
+      "season": "winter",
+      "year": 2021,
+      "label": "Winter 2021",
+      "photos": [
+        {
+          "file": "2021-01_pepper-camp4-0.jpg",
+          "blob": "pepper/gallery/2021-01_pepper-camp4-0.jpg",
+          "url": "/img?path=pepper/gallery/2021-01_pepper-camp4-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2021-01_pepper-camp4-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2021-01_pepper-camp4-0.jpg&w=1200",
+          "taken": "2021-01-10",
+          "dog": "pepper",
+          "caption": "Camp 4, winter 2021 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2021-01_juniper-camp4-1.jpg",
+          "blob": "juniper/gallery/2021-01_juniper-camp4-1.jpg",
+          "url": "/img?path=juniper/gallery/2021-01_juniper-camp4-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2021-01_juniper-camp4-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2021-01_juniper-camp4-1.jpg&w=1200",
+          "taken": "2021-01-13",
+          "dog": "juniper",
+          "caption": "Camp 4, winter 2021 \u2014 juniper on the trail."
+        }
+      ]
+    },
+    {
+      "type": "arrival",
+      "month": 24254,
+      "pet": "scout"
+    },
+    {
+      "type": "camp",
+      "month": 24255,
+      "season": "spring",
+      "year": 2021,
+      "label": "Spring 2021",
+      "photos": [
+        {
+          "file": "2021-04_pepper-camp5-0.jpg",
+          "blob": "pepper/gallery/2021-04_pepper-camp5-0.jpg",
+          "url": "/img?path=pepper/gallery/2021-04_pepper-camp5-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2021-04_pepper-camp5-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2021-04_pepper-camp5-0.jpg&w=1200",
+          "taken": "2021-04-10",
+          "dog": "pepper",
+          "caption": "Camp 5, spring 2021 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2021-04_juniper-camp5-1.jpg",
+          "blob": "juniper/gallery/2021-04_juniper-camp5-1.jpg",
+          "url": "/img?path=juniper/gallery/2021-04_juniper-camp5-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2021-04_juniper-camp5-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2021-04_juniper-camp5-1.jpg&w=1200",
+          "taken": "2021-04-13",
+          "dog": "juniper",
+          "caption": "Camp 5, spring 2021 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2021-04_scout-camp5-2.jpg",
+          "blob": "scout/gallery/2021-04_scout-camp5-2.jpg",
+          "url": "/img?path=scout/gallery/2021-04_scout-camp5-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2021-04_scout-camp5-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2021-04_scout-camp5-2.jpg&w=1200",
+          "taken": "2021-04-16",
+          "dog": "scout",
+          "caption": "Camp 5, spring 2021 \u2014 scout on the trail."
+        }
+      ]
+    },
+    {
+      "type": "camp",
+      "month": 24258,
+      "season": "summer",
+      "year": 2021,
+      "label": "Summer 2021",
+      "photos": [
+        {
+          "file": "2021-07_pepper-camp6-0.jpg",
+          "blob": "pepper/gallery/2021-07_pepper-camp6-0.jpg",
+          "url": "/img?path=pepper/gallery/2021-07_pepper-camp6-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2021-07_pepper-camp6-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2021-07_pepper-camp6-0.jpg&w=1200",
+          "taken": "2021-07-10",
+          "dog": "pepper",
+          "caption": "Camp 6, summer 2021 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2021-07_juniper-camp6-1.jpg",
+          "blob": "juniper/gallery/2021-07_juniper-camp6-1.jpg",
+          "url": "/img?path=juniper/gallery/2021-07_juniper-camp6-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2021-07_juniper-camp6-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2021-07_juniper-camp6-1.jpg&w=1200",
+          "taken": "2021-07-13",
+          "dog": "juniper",
+          "caption": "Camp 6, summer 2021 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2021-07_scout-camp6-2.jpg",
+          "blob": "scout/gallery/2021-07_scout-camp6-2.jpg",
+          "url": "/img?path=scout/gallery/2021-07_scout-camp6-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2021-07_scout-camp6-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2021-07_scout-camp6-2.jpg&w=1200",
+          "taken": "2021-07-16",
+          "dog": "scout",
+          "caption": "Camp 6, summer 2021 \u2014 scout on the trail."
+        }
+      ]
+    },
+    {
+      "type": "camp",
+      "month": 24261,
+      "season": "autumn",
+      "year": 2021,
+      "label": "Autumn 2021",
+      "photos": [
+        {
+          "file": "2021-10_pepper-camp7-0.jpg",
+          "blob": "pepper/gallery/2021-10_pepper-camp7-0.jpg",
+          "url": "/img?path=pepper/gallery/2021-10_pepper-camp7-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2021-10_pepper-camp7-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2021-10_pepper-camp7-0.jpg&w=1200",
+          "taken": "2021-10-10",
+          "dog": "pepper",
+          "caption": "Camp 7, autumn 2021 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2021-10_juniper-camp7-1.jpg",
+          "blob": "juniper/gallery/2021-10_juniper-camp7-1.jpg",
+          "url": "/img?path=juniper/gallery/2021-10_juniper-camp7-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2021-10_juniper-camp7-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2021-10_juniper-camp7-1.jpg&w=1200",
+          "taken": "2021-10-13",
+          "dog": "juniper",
+          "caption": "Camp 7, autumn 2021 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2021-10_scout-camp7-2.jpg",
+          "blob": "scout/gallery/2021-10_scout-camp7-2.jpg",
+          "url": "/img?path=scout/gallery/2021-10_scout-camp7-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2021-10_scout-camp7-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2021-10_scout-camp7-2.jpg&w=1200",
+          "taken": "2021-10-16",
+          "dog": "scout",
+          "caption": "Camp 7, autumn 2021 \u2014 scout on the trail."
+        }
+      ]
+    },
+    {
+      "type": "camp",
+      "month": 24264,
+      "season": "winter",
+      "year": 2022,
+      "label": "Winter 2022",
+      "photos": [
+        {
+          "file": "2022-01_pepper-camp8-0.jpg",
+          "blob": "pepper/gallery/2022-01_pepper-camp8-0.jpg",
+          "url": "/img?path=pepper/gallery/2022-01_pepper-camp8-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2022-01_pepper-camp8-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2022-01_pepper-camp8-0.jpg&w=1200",
+          "taken": "2022-01-10",
+          "dog": "pepper",
+          "caption": "Camp 8, winter 2022 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2022-01_juniper-camp8-1.jpg",
+          "blob": "juniper/gallery/2022-01_juniper-camp8-1.jpg",
+          "url": "/img?path=juniper/gallery/2022-01_juniper-camp8-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2022-01_juniper-camp8-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2022-01_juniper-camp8-1.jpg&w=1200",
+          "taken": "2022-01-13",
+          "dog": "juniper",
+          "caption": "Camp 8, winter 2022 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2022-01_scout-camp8-2.jpg",
+          "blob": "scout/gallery/2022-01_scout-camp8-2.jpg",
+          "url": "/img?path=scout/gallery/2022-01_scout-camp8-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2022-01_scout-camp8-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2022-01_scout-camp8-2.jpg&w=1200",
+          "taken": "2022-01-16",
+          "dog": "scout",
+          "caption": "Camp 8, winter 2022 \u2014 scout on the trail."
+        }
+      ]
+    },
+    {
+      "type": "camp",
+      "month": 24267,
+      "season": "spring",
+      "year": 2022,
+      "label": "Spring 2022",
+      "photos": [
+        {
+          "file": "2022-04_pepper-camp9-0.jpg",
+          "blob": "pepper/gallery/2022-04_pepper-camp9-0.jpg",
+          "url": "/img?path=pepper/gallery/2022-04_pepper-camp9-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2022-04_pepper-camp9-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2022-04_pepper-camp9-0.jpg&w=1200",
+          "taken": "2022-04-10",
+          "dog": "pepper",
+          "caption": "Camp 9, spring 2022 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2022-04_juniper-camp9-1.jpg",
+          "blob": "juniper/gallery/2022-04_juniper-camp9-1.jpg",
+          "url": "/img?path=juniper/gallery/2022-04_juniper-camp9-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2022-04_juniper-camp9-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2022-04_juniper-camp9-1.jpg&w=1200",
+          "taken": "2022-04-13",
+          "dog": "juniper",
+          "caption": "Camp 9, spring 2022 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2022-04_scout-camp9-2.jpg",
+          "blob": "scout/gallery/2022-04_scout-camp9-2.jpg",
+          "url": "/img?path=scout/gallery/2022-04_scout-camp9-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2022-04_scout-camp9-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2022-04_scout-camp9-2.jpg&w=1200",
+          "taken": "2022-04-16",
+          "dog": "scout",
+          "caption": "Camp 9, spring 2022 \u2014 scout on the trail."
+        }
+      ]
+    },
+    {
+      "type": "camp",
+      "month": 24270,
+      "season": "summer",
+      "year": 2022,
+      "label": "Summer 2022",
+      "photos": [
+        {
+          "file": "2022-07_pepper-camp10-0.jpg",
+          "blob": "pepper/gallery/2022-07_pepper-camp10-0.jpg",
+          "url": "/img?path=pepper/gallery/2022-07_pepper-camp10-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2022-07_pepper-camp10-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2022-07_pepper-camp10-0.jpg&w=1200",
+          "taken": "2022-07-10",
+          "dog": "pepper",
+          "caption": "Camp 10, summer 2022 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2022-07_juniper-camp10-1.jpg",
+          "blob": "juniper/gallery/2022-07_juniper-camp10-1.jpg",
+          "url": "/img?path=juniper/gallery/2022-07_juniper-camp10-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2022-07_juniper-camp10-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2022-07_juniper-camp10-1.jpg&w=1200",
+          "taken": "2022-07-13",
+          "dog": "juniper",
+          "caption": "Camp 10, summer 2022 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2022-07_scout-camp10-2.jpg",
+          "blob": "scout/gallery/2022-07_scout-camp10-2.jpg",
+          "url": "/img?path=scout/gallery/2022-07_scout-camp10-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2022-07_scout-camp10-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2022-07_scout-camp10-2.jpg&w=1200",
+          "taken": "2022-07-16",
+          "dog": "scout",
+          "caption": "Camp 10, summer 2022 \u2014 scout on the trail."
+        }
+      ]
+    },
+    {
+      "type": "camp",
+      "month": 24273,
+      "season": "autumn",
+      "year": 2022,
+      "label": "Autumn 2022",
+      "photos": [
+        {
+          "file": "2022-10_pepper-camp11-0.jpg",
+          "blob": "pepper/gallery/2022-10_pepper-camp11-0.jpg",
+          "url": "/img?path=pepper/gallery/2022-10_pepper-camp11-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2022-10_pepper-camp11-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2022-10_pepper-camp11-0.jpg&w=1200",
+          "taken": "2022-10-10",
+          "dog": "pepper",
+          "caption": "Camp 11, autumn 2022 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2022-10_juniper-camp11-1.jpg",
+          "blob": "juniper/gallery/2022-10_juniper-camp11-1.jpg",
+          "url": "/img?path=juniper/gallery/2022-10_juniper-camp11-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2022-10_juniper-camp11-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2022-10_juniper-camp11-1.jpg&w=1200",
+          "taken": "2022-10-13",
+          "dog": "juniper",
+          "caption": "Camp 11, autumn 2022 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2022-10_scout-camp11-2.jpg",
+          "blob": "scout/gallery/2022-10_scout-camp11-2.jpg",
+          "url": "/img?path=scout/gallery/2022-10_scout-camp11-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2022-10_scout-camp11-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2022-10_scout-camp11-2.jpg&w=1200",
+          "taken": "2022-10-16",
+          "dog": "scout",
+          "caption": "Camp 11, autumn 2022 \u2014 scout on the trail."
+        }
+      ]
+    },
+    {
+      "type": "camp",
+      "month": 24276,
+      "season": "winter",
+      "year": 2023,
+      "label": "Winter 2023",
+      "photos": [
+        {
+          "file": "2023-01_pepper-camp12-0.jpg",
+          "blob": "pepper/gallery/2023-01_pepper-camp12-0.jpg",
+          "url": "/img?path=pepper/gallery/2023-01_pepper-camp12-0.jpg&w=1200",
+          "thumb": "/img?path=pepper/gallery/2023-01_pepper-camp12-0.jpg&w=480",
+          "large": "/img?path=pepper/gallery/2023-01_pepper-camp12-0.jpg&w=1200",
+          "taken": "2023-01-10",
+          "dog": "pepper",
+          "caption": "Camp 12, winter 2023 \u2014 pepper on the trail."
+        },
+        {
+          "file": "2023-01_juniper-camp12-1.jpg",
+          "blob": "juniper/gallery/2023-01_juniper-camp12-1.jpg",
+          "url": "/img?path=juniper/gallery/2023-01_juniper-camp12-1.jpg&w=1200",
+          "thumb": "/img?path=juniper/gallery/2023-01_juniper-camp12-1.jpg&w=480",
+          "large": "/img?path=juniper/gallery/2023-01_juniper-camp12-1.jpg&w=1200",
+          "taken": "2023-01-13",
+          "dog": "juniper",
+          "caption": "Camp 12, winter 2023 \u2014 juniper on the trail."
+        },
+        {
+          "file": "2023-01_scout-camp12-2.jpg",
+          "blob": "scout/gallery/2023-01_scout-camp12-2.jpg",
+          "url": "/img?path=scout/gallery/2023-01_scout-camp12-2.jpg&w=1200",
+          "thumb": "/img?path=scout/gallery/2023-01_scout-camp12-2.jpg&w=480",
+          "large": "/img?path=scout/gallery/2023-01_scout-camp12-2.jpg&w=1200",
+          "taken": "2023-01-16",
+          "dog": "scout",
+          "caption": "Camp 12, winter 2023 \u2014 scout on the trail."
+        }
+      ]
+    },
+    {
+      "type": "passing",
+      "month": 24286,
+      "pet": "juniper"
+    },
+    {
+      "type": "today",
+      "month": 24290
+    }
+  ],
+  "lore": []
+}

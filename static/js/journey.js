@@ -1054,6 +1054,11 @@
   let camDist = 0, lastT = 0;
 
   function update(now){
+    // Frame-time budget for the smoke script (KTD7/U3): timed from the top of
+    // update() to its last line, since that is the whole per-frame cost this
+    // engine controls — the gap between rAF callbacks is pinned to the
+    // display's refresh rate and tells us nothing about our own work.
+    const __statT0 = performance.now();
     const doc = document.documentElement;
     const prog = clamp(scrollY / (doc.scrollHeight - innerHeight), 0, 1);
     const target = prog * PLEN;
@@ -1080,18 +1085,24 @@
     if (ridge) ridge.style.transform = `translateX(${(-camX * 0.045).toFixed(1)}px)`;
 
     const arrived = camProg > 0.012;
+    // Counted alongside the existing cull passes below (no extra walk) for
+    // the __journeyStats surface-count hook at the bottom of this function.
+    let __aliveBbs = 0, __aliveProps = 0, __aliveBands = 0;
     bbs.forEach(b => {
       const on = arrived && b.y > camY - 1500 && b.y < camY + 800;
+      if (on) __aliveBbs++;
       if (on !== b.el.classList.contains('on')) b.el.classList.toggle('on', on);
     });
     props.forEach(pr => {
       const vis = pr.yMax > camY - 2400 && pr.yMax < camY + 900;
+      if (vis) __aliveProps++;
       if (vis === !pr.hidden) return;
       pr.hidden = !vis;
       pr.el.style.display = vis ? '' : 'none';
     });
     bands.forEach(b => {
       const vis = b.y0 < camY + 1700 && b.y0 + BANDH > camY - 2400;
+      if (vis) __aliveBands++;
       if (vis === !b.hidden) return;
       b.hidden = !vis;
       b.svg.style.display = vis ? '' : 'none';
@@ -1140,6 +1151,25 @@
     if (end !== lastEnd){ lastEnd = end; endnote.classList.toggle('on', end); }
 
     if (fanOpenEl && Math.abs(scrollY - fanScrollY) > 90) closeFan();
+
+    // Smoke-test hook (KTD7/U3): a plain object the browser smoke script
+    // polls, so the pre-art baseline is measured with the same instrument
+    // later units (overlays, motion) will be judged against. aliveBands and
+    // aliveSurfaces reuse the counts above rather than re-walking the DOM;
+    // aliveSurfaces = bands + props (which already holds groves) + billboards.
+    const __prevStats = window.__journeyStats;
+    window.__journeyStats = {
+      camY,
+      aliveBands: __aliveBands,
+      aliveSurfaces: __aliveBands + __aliveProps + __aliveBbs,
+      missingOverlays: 0,  // no overlays exist yet; U4 populates this from the lookahead-attach state
+      updateMs: performance.now() - __statT0,
+      frames: __prevStats ? __prevStats.frames + 1 : 1,
+      // Placeholder for U4's overlay gate: no overlays exist yet so the
+      // ground is always flat; an explicit non-"flat" value already flows
+      // through so the URL plumbing can be exercised ahead of that unit.
+      flat: !params.has('ground') || params.get('ground') === 'flat',
+    };
   }
 
   /* keep animating until the camera has caught up with the scrollbar */

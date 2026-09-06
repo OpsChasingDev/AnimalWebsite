@@ -529,7 +529,44 @@ def invalidate_model() -> None:
         pass  # worst case the photo shows up a minute later
 
 
+# "log this only once" latches for the fixture hook below, so a long-running
+# process doesn't spam the same line on every request.
+_fixture_logged: dict = {"active": False, "ignored": False}
+
+
 def get_model() -> dict:
+    # JOURNEY_FIXTURE lets the journey run from a saved model JSON with no
+    # storage credentials, so U3's browser smoke script (and a laptop) can
+    # render the page without az login. It must never leak onto the live
+    # site, so the same App Service check _resolve_state_dir() uses (an
+    # instance ID plus /home as HOME) wins over the env var, loudly: a
+    # leftover setting on the real site must not start serving fake data.
+    fixture_path = os.environ.get("JOURNEY_FIXTURE")
+    if fixture_path:
+        if os.environ.get("WEBSITE_INSTANCE_ID") and os.environ.get("HOME") == "/home":
+            if not _fixture_logged["ignored"]:
+                _fixture_logged["ignored"] = True
+                app.logger.warning(
+                    "JOURNEY_FIXTURE=%s ignored: running on App Service", fixture_path)
+        else:
+            try:
+                fixture_model = json.loads(Path(fixture_path).read_text())
+            except OSError as e:
+                app.logger.warning(
+                    "JOURNEY_FIXTURE=%s unreadable (%s); falling back to the normal model",
+                    fixture_path, e)
+            except ValueError as e:
+                app.logger.warning(
+                    "JOURNEY_FIXTURE=%s is not valid JSON (%s); falling back to the normal model",
+                    fixture_path, e)
+            else:
+                if not _fixture_logged["active"]:
+                    _fixture_logged["active"] = True
+                    app.logger.info(
+                        "JOURNEY_FIXTURE=%s: serving the fixture model, storage untouched",
+                        fixture_path)
+                return fixture_model  # never touches _model_cache or the on-disk snapshot
+
     now = time.time()
     cached = _model_cache["model"]
     if (cached is not None

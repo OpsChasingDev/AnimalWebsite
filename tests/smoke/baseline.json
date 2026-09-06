@@ -1,0 +1,26 @@
+{
+  "desktop": {
+    "aliveBandsMax": 4,
+    "aliveSurfacesMax": 43,
+    "missingOverlaysMax": 0,
+    "updateMsAvg": 0.32,
+    "updateMsWorst": 0.7,
+    "longTasks": 0
+  },
+  "lite": {
+    "aliveBandsMax": 4,
+    "aliveSurfacesMax": 44,
+    "missingOverlaysMax": 0,
+    "updateMsAvg": 0.32,
+    "updateMsWorst": 1,
+    "longTasks": 0
+  },
+  "reduced": {
+    "aliveBandsMax": 4,
+    "aliveSurfacesMax": 42,
+    "missingOverlaysMax": 0,
+    "updateMsAvg": 0.38,
+    "updateMsWorst": 0.5,
+    "longTasks": 0
+  }
+}

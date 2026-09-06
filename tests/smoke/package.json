@@ -1,0 +1,11 @@
+{
+  "name": "journey-smoke",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "smoke": "node journey-smoke.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.63.0"
+  }
+}
