@@ -121,11 +121,15 @@
   // iPhone can isolate what blows the memory ceiling without a rebuild:
   //   ?snow=off   skip the winter snow rects entirely
   //   ?look=0     attach art only to visible bands (default: one band ahead)
-  //   ?tile=512   pattern tile size in world px (default 1024; smaller tile
-  //               = smaller per-band pattern buffer, finer grain)
+  //   ?tile=512   dirt pattern tile size in world px (default 256; the one
+  //               remaining <pattern>, since a stroke needs a paint server)
   const GROUND_SNOW = params.get('snow') !== 'off';
+  const GROUND_INK = params.get('ink') !== 'off';        // ?ink=off   no brush-grain overlay rect
+  const GROUND_DIRT = params.get('dirt') !== 'off';      // ?dirt=off  plain trail stroke, no dirt pattern
+  const GROUND_SPRITES = params.get('sprites') !== 'off'; // ?sprites=off no atlas detail sprites
   const LOOKAHEAD_BANDS = params.has('look') ? Math.max(0, Number(params.get('look')) || 0) : 1;
-  const TILE = [256, 512, 1024].includes(Number(params.get('tile'))) ? Number(params.get('tile')) : 1024;
+  const TILE = [256, 512, 1024].includes(Number(params.get('tile'))) ? Number(params.get('tile')) : 256;
+  const ART_TILE = 1024;  // world px per overlay image; the art is 1024 px square
   const INK_COLOR = '#241F1A';  // docs/alpine-art-brief.md section 2
   const ATLAS = ART['tree-rock-atlas.webp'];
   const ATLAS_CELLS = {};
@@ -148,7 +152,7 @@
   // cells reference it. href is attached/detached by the caller.
   function atlasCellMarkup(name, ax, ay){
     const c = ATLAS_CELLS[name];
-    if (!c) return '';
+    if (!c || !GROUND_SPRITES) return '';
     return `<svg x="${ax - c.w/2}" y="${ay - c.h/2}" width="${c.w}" height="${c.h}" ` +
       `viewBox="${c.x} ${c.y} ${c.w} ${c.h}"><image class="atlas" width="${ATLAS_SIZE[0]}" height="${ATLAS_SIZE[1]}"/></svg>`;
   }
@@ -210,116 +214,137 @@
       bgrad.appendChild(st);
     });
     bdefs.appendChild(bgrad);
-    // Brush-grain overlay, tiled over the gradient. patternUnits
-    // is userSpaceOnUse anchored at world origin (x=0,y=0), and every band's
-    // viewBox lives in that same world space, so the tile phase lines up
-    // continuously across the 2px band overlap instead of restarting at
-    // each band's own top edge. No href yet; update() attaches one only when
-    // the band enters the lookahead window, and until then the pattern
-    // paints nothing, so the gradient rect underneath still shows (the
-    // "never blank" guarantee).
-    const inkPattern = document.createElementNS(NS, 'pattern');
-    inkPattern.id = 'ink' + bi;
-    inkPattern.setAttribute('patternUnits', 'userSpaceOnUse');
-    inkPattern.setAttribute('x', '0'); inkPattern.setAttribute('y', '0');
-    inkPattern.setAttribute('width', TILE); inkPattern.setAttribute('height', TILE);
-    const overlayImg = document.createElementNS(NS, 'image');
-    overlayImg.setAttribute('width', TILE); overlayImg.setAttribute('height', TILE);
-    inkPattern.appendChild(overlayImg);
-    bdefs.appendChild(inkPattern);
-    // Dirt-tile pattern for the trail surface (built below, once dStr and
-    // the per-band bandPath exist); same world-anchoring rationale as ink.
-    const dirtPattern = document.createElementNS(NS, 'pattern');
-    dirtPattern.id = 'dirt' + bi;
-    dirtPattern.setAttribute('patternUnits', 'userSpaceOnUse');
-    dirtPattern.setAttribute('x', '0'); dirtPattern.setAttribute('y', '0');
-    dirtPattern.setAttribute('width', '512'); dirtPattern.setAttribute('height', '512');
-    const dirtImg = document.createElementNS(NS, 'image');
-    dirtImg.setAttribute('width', '512'); dirtImg.setAttribute('height', '512');
-    dirtPattern.appendChild(dirtImg);
-    bdefs.appendChild(dirtPattern);
     bsvg.appendChild(bdefs);
     const bg = document.createElementNS(NS, 'rect');
     bg.setAttribute('x', -1100); bg.setAttribute('y', y0 - over);
     bg.setAttribute('width', W + 2200); bg.setAttribute('height', BANDH + over);
     bg.setAttribute('fill', `url(#seasons${bi})`);
     bsvg.appendChild(bg);
-    const inkRect = document.createElementNS(NS, 'rect');
-    inkRect.setAttribute('x', -1100); inkRect.setAttribute('y', y0 - over);
-    inkRect.setAttribute('width', W + 2200); inkRect.setAttribute('height', BANDH + over);
-    inkRect.setAttribute('fill', `url(#ink${bi})`);
-    bsvg.appendChild(inkRect);
-    map.appendChild(bsvg);
 
     // Overlay choice is by band index, not rnd(): an extra rnd() call in
     // this loop would shift the seeded sequence and move every tree and
     // trail drift on the site.
     const overlayFile = `ground-overlay-${['a','b','c'][(bi * 7) % 3]}.webp`;
-    // Winter gets its own painted overlay (drifts + bare grass) because a
-    // transparent grain doesn't read as snow (docs/alpine-art-brief.md
-    // section 2). It is drawn above the neutral grain, only over the
-    // winterRanges that cross this band. The fade at each end matches the
-    // gradient's distance but is faked with a few fill-opacity strips:
-    // never an SVG <mask> or element opacity here, because on iOS each of
-    // those allocates offscreen buffers the size of the masked rect at 3x
-    // (about 130 MB per winter band), which crash-reloaded the tab.
-    // fill-opacity is applied per pixel with no extra buffer. One snow
-    // pattern per band; its image href is attached and detached with the band.
-    let snowImg = null;
-    const rx = -1100, rw = W + 2200;
-    const FADE_STEPS = 4;
-    if (GROUND_SNOW) winterRanges.forEach(r => {
-      const top = Math.max(r.a, y0 - over), bot = Math.min(r.b, y0 + BANDH + over);
-      if (bot <= top) return;
-      if (!snowImg){
-        const snowPattern = document.createElementNS(NS, 'pattern');
-        snowPattern.id = 'snow' + bi;
-        snowPattern.setAttribute('patternUnits', 'userSpaceOnUse');
-        snowPattern.setAttribute('x', '0'); snowPattern.setAttribute('y', '0');
-        snowPattern.setAttribute('width', TILE); snowPattern.setAttribute('height', TILE);
-        snowImg = document.createElementNS(NS, 'image');
-        snowImg.setAttribute('width', TILE); snowImg.setAttribute('height', TILE);
-        snowPattern.appendChild(snowImg);
-        bdefs.appendChild(snowPattern);
-        snowImg.addEventListener('error', () => snowImg.removeAttribute('href'));
-      }
-      const fade = Math.min(SEASON_FADE, (r.b - r.a) / 2);
-      const strip = (y1, y2, alpha) => {
-        const a = Math.max(y1, top), b = Math.min(y2, bot);
-        if (b <= a) return;
-        const sr = document.createElementNS(NS, 'rect');
-        sr.setAttribute('x', rx); sr.setAttribute('y', a);
-        sr.setAttribute('width', rw); sr.setAttribute('height', b - a);
-        sr.setAttribute('fill', `url(#snow${bi})`);
-        if (alpha < 1) sr.setAttribute('fill-opacity', alpha.toFixed(2));
-        bsvg.appendChild(sr);
+    let inkImgs = [], dirtImg = null, snowImgs = [];
+    // Everything painted is skipped entirely in flat mode so ?ground=flat
+    // really is the pre-art build. Budget rules learned on the iPhone
+    // (2026-09-06): on WebKit every element filled with a <pattern> owns a
+    // GPU tile buffer of tile size x 3x DPR, about 20 MB per band per
+    // pattern at a 1024 tile, even before its image has an href. So the
+    // overlays are plain <image> tiles instead (they draw straight from the
+    // one decoded bitmap, no buffer), the dirt trail keeps the only pattern
+    // because a stroke needs a paint server and uses a small tile, and
+    // nothing here uses a mask, a filter or element opacity.
+    if (!GROUND_FLAT){
+      // World-anchored tiling: image positions are multiples of ART_TILE in
+      // world space, and every band's viewBox is that same world space, so
+      // the tile phase lines up continuously across the 2 px band overlap.
+      // No href yet; update() attaches one only when the band enters the
+      // lookahead window, and until then an <image> paints nothing, so the
+      // gradient rect underneath still shows (the "never blank" guarantee).
+      const tileImages = (parent, yTop, yBot) => {
+        const imgs = [];
+        const x0 = Math.floor(-1100 / ART_TILE) * ART_TILE, x1 = W + 1100;
+        const ya = Math.floor(yTop / ART_TILE) * ART_TILE;
+        for (let ty = ya; ty < yBot; ty += ART_TILE){
+          for (let tx = x0; tx < x1; tx += ART_TILE){
+            const im = document.createElementNS(NS, 'image');
+            im.setAttribute('x', tx); im.setAttribute('y', ty);
+            im.setAttribute('width', ART_TILE); im.setAttribute('height', ART_TILE);
+            parent.appendChild(im); imgs.push(im);
+          }
+        }
+        return imgs;
       };
-      for (let i = 0; i < FADE_STEPS; i++){
-        const alpha = (i + 1) / (FADE_STEPS + 1), h = fade / FADE_STEPS;
-        strip(r.a + i * h, r.a + (i + 1) * h, alpha);             // fade in
-        strip(r.b - (i + 1) * h, r.b - i * h, alpha);             // fade out
-      }
-      strip(r.a + fade, r.b - fade, 1);                            // core
-    });
+      if (GROUND_INK) inkImgs = tileImages(bsvg, y0 - over, y0 + BANDH + over);
+
+      const dirtPattern = document.createElementNS(NS, 'pattern');
+      dirtPattern.id = 'dirt' + bi;
+      dirtPattern.setAttribute('patternUnits', 'userSpaceOnUse');
+      dirtPattern.setAttribute('x', '0'); dirtPattern.setAttribute('y', '0');
+      dirtPattern.setAttribute('width', TILE); dirtPattern.setAttribute('height', TILE);
+      dirtImg = document.createElementNS(NS, 'image');
+      dirtImg.setAttribute('width', TILE); dirtImg.setAttribute('height', TILE);
+      dirtPattern.appendChild(dirtImg);
+      bdefs.appendChild(dirtPattern);
+
+      // Winter gets its own painted overlay (drifts + bare grass) because a
+      // transparent grain doesn't read as snow (docs/alpine-art-brief.md
+      // section 2). Its tiles sit in a group clipped by one plain rect (a
+      // scissor, no buffer) to the winter stretch; the fade at each end is
+      // the neighbouring season's ground colour painted back over the snow
+      // through a plain gradient, which is a shading with no buffer either.
+      const rx = -1100, rw = W + 2200;
+      if (GROUND_SNOW) winterRanges.forEach((r, k) => {
+        const top = Math.max(r.a, y0 - over), bot = Math.min(r.b, y0 + BANDH + over);
+        if (bot <= top) return;
+        const cp = document.createElementNS(NS, 'clipPath');
+        cp.id = `snowclip${bi}_${k}`; cp.setAttribute('clipPathUnits', 'userSpaceOnUse');
+        const cr = document.createElementNS(NS, 'rect');
+        cr.setAttribute('x', rx); cr.setAttribute('y', top);
+        cr.setAttribute('width', rw); cr.setAttribute('height', bot - top);
+        cp.appendChild(cr); bdefs.appendChild(cp);
+        const g = document.createElementNS(NS, 'g');
+        g.setAttribute('clip-path', `url(#${cp.id})`);
+        bsvg.appendChild(g);
+        snowImgs.push(...tileImages(g, top, bot));
+        const fade = Math.min(SEASON_FADE, (r.b - r.a) / 2);
+        const edge = (yFrom, yTo, colorAtY, tag) => {
+          const a = Math.max(Math.min(yFrom, yTo), top), b = Math.min(Math.max(yFrom, yTo), bot);
+          if (b <= a) return;
+          const lg = document.createElementNS(NS, 'linearGradient');
+          lg.id = `snowfade${bi}_${k}${tag}`;
+          lg.setAttribute('gradientUnits', 'userSpaceOnUse');
+          lg.setAttribute('x1', '0'); lg.setAttribute('y1', yFrom); lg.setAttribute('x2', '0'); lg.setAttribute('y2', yTo);
+          const color = SEASON_GROUND[SEASON_OF(Math.round(monthAtY(colorAtY)))];
+          [[0, 1], [1, 0]].forEach(([off, o]) => {
+            const st = document.createElementNS(NS, 'stop');
+            st.setAttribute('offset', off * 100 + '%');
+            st.setAttribute('stop-color', color); st.setAttribute('stop-opacity', o);
+            lg.appendChild(st);
+          });
+          bdefs.appendChild(lg);
+          const fr = document.createElementNS(NS, 'rect');
+          fr.setAttribute('x', rx); fr.setAttribute('y', a);
+          fr.setAttribute('width', rw); fr.setAttribute('height', b - a);
+          fr.setAttribute('fill', `url(#${lg.id})`);
+          bsvg.appendChild(fr);
+        };
+        // Neighbour colours come from the same 420 px sample grid the
+        // gradient stops use: the sample before the first winter one, and
+        // the first non-winter one after it (r.b is that sample).
+        if (r.a > -3000) edge(r.a, r.a + fade, r.a + SEASON_FADE - 420, 'a');  // previous season fades out downward
+        if (r.b < LEN + 3000) edge(r.b, r.b - fade, r.b, 'b');                   // next season fades out upward
+      });
+    }
+    map.appendChild(bsvg);
+
     const band = {
-      svg: bsvg, y0, overlayFile, overlayImg, dirtImg, snowImg,
+      svg: bsvg, y0, overlayFile, inkImgs, dirtImg, snowImgs,
       overlayUrl: assetUrl(overlayFile), dirtFill: `url(#dirt${bi})`,
       attached: false, attachedAt: 0, overlayState: 'loading', dirtState: 'loading', detailImgs: [],
     };
-    // Paint-state listeners are wired once at build so a late attach only
-    // has to flip href. Chromium quirk: a <pattern>'s <image> whose href
-    // fails to load does not fall back to transparent, it paints an opaque
-    // placeholder over the gradient rect and breaks "never blank". So on
-    // error the href is cleared, which reverts the pattern to its transparent
-    // pre-attach state; overlayState still records 'failed' so
-    // missingOverlays keeps detecting it.
-    overlayImg.addEventListener('load', () => { band.overlayState = 'painted'; });
-    overlayImg.addEventListener('error', () => { band.overlayState = 'failed'; overlayImg.removeAttribute('href'); });
-    // Same quirk, same fix, for the dirt-trail pattern; dirtState feeds
-    // missingOverlays the same way overlayState does, so a failed dirt tile
-    // is caught by the same runtime detector as a failed ground overlay.
-    dirtImg.addEventListener('load', () => { band.dirtState = 'painted'; });
-    dirtImg.addEventListener('error', () => { band.dirtState = 'failed'; dirtImg.removeAttribute('href'); });
+    if (!GROUND_FLAT){
+      // Paint-state listeners are wired once at build so a late attach only
+      // has to flip href. Chromium quirk: a <pattern>'s <image> whose href
+      // fails to load does not fall back to transparent, it paints an opaque
+      // placeholder over the gradient rect and breaks "never blank". So on
+      // error the href is cleared, which reverts the pattern to its
+      // transparent pre-attach state; overlayState still records 'failed' so
+      // missingOverlays keeps detecting it. dirtState works the same way.
+      // The overlay is many tiles of one bitmap; the first tile's events
+      // stand for the band (same URL, same decode, same outcome).
+      if (inkImgs.length){
+        inkImgs[0].addEventListener('load', () => { band.overlayState = 'painted'; });
+        inkImgs[0].addEventListener('error', () => { band.overlayState = 'failed'; });
+      } else {
+        band.overlayState = 'painted';  // ?ink=off: nothing to wait for
+      }
+      inkImgs.forEach(im => im.addEventListener('error', () => im.removeAttribute('href')));
+      dirtImg.addEventListener('load', () => { band.dirtState = 'painted'; });
+      dirtImg.addEventListener('error', () => { band.dirtState = 'failed'; dirtImg.removeAttribute('href'); });
+      snowImgs.forEach(im => im.addEventListener('error', () => im.removeAttribute('href')));
+    }
     bands.push(band);
   }
   const bandFor = yy => clamp(Math.floor((yy - BAND0) / BANDH), 0, NB - 1);
@@ -444,7 +469,7 @@
       b.svg.appendChild(inkEdge);
       const dirtPath = document.createElementNS(NS, 'path');
       dirtPath.setAttribute('d', dStr); dirtPath.setAttribute('fill', 'none');
-      dirtPath.setAttribute('stroke', b.dirtFill); dirtPath.setAttribute('stroke-width', '120');
+      dirtPath.setAttribute('stroke', GROUND_DIRT ? b.dirtFill : '#8B8A7E'); dirtPath.setAttribute('stroke-width', '120');
       dirtPath.setAttribute('stroke-linecap', 'round');
       b.svg.appendChild(dirtPath);
     }
@@ -580,7 +605,7 @@
   // Debug hook for the smoke script's lookahead scenario: a plain
   // snapshot, not live references, so reading it can't itself perturb state.
   window.__journeyBands = () => bands.map(b => (
-    {y0: b.y0, hidden: !!b.hidden, attached: !!b.attached, overlayFile: b.overlayFile, winter: !!b.snowImg}));
+    {y0: b.y0, hidden: !!b.hidden, attached: !!b.attached, overlayFile: b.overlayFile, winter: b.snowImgs.length > 0}));
 
   /* cloud shadows drifting over the ground */
   if (!reduced && !LITE){
@@ -1421,13 +1446,13 @@
           attachTimes.push(b.attachedAt);
           if (attachTimes.length > 64) attachTimes.shift();
           b.overlayState = 'loading'; b.dirtState = 'loading';
-          if (b.overlayUrl) b.overlayImg.setAttribute('href', b.overlayUrl);
-          if (b.snowImg && SNOW_URL) b.snowImg.setAttribute('href', SNOW_URL);
+          if (b.overlayUrl) b.inkImgs.forEach(im => im.setAttribute('href', b.overlayUrl));
+          if (SNOW_URL) b.snowImgs.forEach(im => im.setAttribute('href', SNOW_URL));
           if (DIRT_URL) b.dirtImg.setAttribute('href', DIRT_URL);
           if (ATLAS_URL) b.detailImgs.forEach(im => im.setAttribute('href', ATLAS_URL));
         } else {
-          b.overlayImg.removeAttribute('href');
-          if (b.snowImg) b.snowImg.removeAttribute('href');
+          b.inkImgs.forEach(im => im.removeAttribute('href'));
+          b.snowImgs.forEach(im => im.removeAttribute('href'));
           b.dirtImg.removeAttribute('href');
           b.detailImgs.forEach(im => im.removeAttribute('href'));
         }

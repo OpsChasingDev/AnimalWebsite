@@ -101,6 +101,11 @@ install chromium`. Then run `node journey-smoke.mjs` from that folder. Add
 to re-record `tests/smoke/baseline.json`. It also runs a fixture with twice
 the trail length to confirm alive bands never grow with trail length.
 
+`tests/smoke/webkit-gpu-memory.mjs` measures the GPU-process memory of
+Playwright's WebKit (Safari's engine) for URL variants at iPhone size, the
+best desktop proxy for the phone's crash ceiling. Run it against a running
+fixture server; compare every variant with `?ground=flat`.
+
 Unit tests use plain `unittest`:
 `python -m unittest tests/test_fixture_mode.py -v`.
 
