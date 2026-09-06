@@ -99,12 +99,12 @@
     || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   if (LITE) document.body.classList.add('lite');
 
-  /* U4/KTD9: ALPINE is the manifest app.py reads at import (or an empty one
+  /* ALPINE is the manifest app.py reads at import (or an empty one
      on a missing/corrupt file). Index it by file name so the rest of this
      script can look up a hash or an atlas cell without re-parsing anything.
      assetUrl() appends the manifest's content hash as a cache-busting query
      string, so a real-art drop-in with a rehashed manifest changes what
-     ships with no code change (KTD9's rehash step). This is a second URL
+     ships with no code change (the rehash step). This is a second URL
      builder on purpose: /img (built in app.py) proxies blob photos through
      auth and thumbnailing; assetUrl() serves art shipped with the app. */
   const ART = {};
@@ -115,7 +115,7 @@
   }
   // An empty manifest (missing/corrupt file) or ?ground=flat both mean "no
   // painted overlays": the flat season gradient carries the ground instead,
-  // which is always present so the page never renders blank (KTD9).
+  // which is always present so the page never renders blank.
   const GROUND_FLAT = params.get('ground') === 'flat' || !ART['ground-overlay-a.webp'];
   const INK_COLOR = '#241F1A';  // docs/alpine-art-brief.md section 2
   const ATLAS = ART['tree-rock-atlas.webp'];
@@ -125,11 +125,11 @@
   const DIRT_URL = assetUrl('dirt-trail-tile.webp');
   const SNOW_URL = assetUrl('ground-overlay-winter.webp');
   const ATLAS_URL = assetUrl('tree-rock-atlas.webp');
-  // Nested-svg crop idiom (U4 and U9's prop()): an <image> can't crop to an
+  // Nested-svg crop idiom (also used by prop() for set dressing): an <image> can't crop to an
   // atlas cell on its own, so each sprite is a small svg viewport whose
   // viewBox is the cell's rect in atlas pixels, with one full-atlas <image>
   // inside it — the atlas is one URL, decoded once, no matter how many
-  // cells reference it. href is attached/detached by the caller (KTD4).
+  // cells reference it. href is attached/detached by the caller.
   function atlasCellMarkup(name, ax, ay){
     const c = ATLAS_CELLS[name];
     if (!c) return '';
@@ -155,7 +155,7 @@
   stops.push({off: 1, color: prevColor || SEASON_GROUND.summer});
 
   /* Winter stretches in world y, from the same 420 px sampling that builds
-     the gradient stops. The snow overlay (KTD1's one colored overlay) is
+     the gradient stops. The snow overlay (the one colored overlay) is
      clipped to these instead of painted across a whole 1600 px band, and its
      masked edges fade over the same 2% of LEN the gradient does, so drifts
      never sit on gold autumn ground. Open-ended at either end of the trail. */
@@ -194,11 +194,11 @@
       bgrad.appendChild(st);
     });
     bdefs.appendChild(bgrad);
-    // KTD1/KTD4: brush-grain overlay, tiled over the gradient. patternUnits
+    // Brush-grain overlay, tiled over the gradient. patternUnits
     // is userSpaceOnUse anchored at world origin (x=0,y=0), and every band's
     // viewBox lives in that same world space, so the tile phase lines up
     // continuously across the 2px band overlap instead of restarting at
-    // each band's own top edge. No href yet — KTD4 attaches one only when
+    // each band's own top edge. No href yet; update() attaches one only when
     // the band enters the lookahead window, and until then the pattern
     // paints nothing, so the gradient rect underneath still shows (the
     // "never blank" guarantee).
@@ -237,14 +237,14 @@
 
     // Overlay choice is by band index, not rnd(): an extra rnd() call in
     // this loop would shift the seeded sequence and move every tree and
-    // trail drift on the site (KTD1).
+    // trail drift on the site.
     const overlayFile = `ground-overlay-${['a','b','c'][(bi * 7) % 3]}.webp`;
     // Winter gets its own painted overlay (drifts + bare grass) because a
     // transparent grain doesn't read as snow (docs/alpine-art-brief.md
     // section 2). It is drawn above the neutral grain, only over the
     // winterRanges that cross this band, through a mask whose gradient fades
     // in step with the season gradient underneath. One snow pattern per
-    // band; its image href is attached and detached with the band (KTD4).
+    // band; its image href is attached and detached with the band.
     let snowImg = null;
     const rx = -1100, rw = W + 2200;
     winterRanges.forEach((r, k) => {
@@ -295,25 +295,16 @@
       overlayUrl: assetUrl(overlayFile), dirtFill: `url(#dirt${bi})`,
       attached: false, attachedAt: 0, overlayState: 'loading', detailImgs: [],
     };
-    // Paint-state tracking (KTD4): set once at build so a late attach only
-    // has to flip href, never re-wire listeners.
-    //
-    // Deviation from the brief's literal wording ("on error leave the href
-    // alone"): measured in real Chromium, a <pattern>'s <image> whose href
-    // fails to load does NOT fall back to transparent (letting the gradient
-    // rect underneath show) — it paints an undefined placeholder (observed:
-    // solid white for one band, a tinted blue-grey for another, from a
-    // minimal repro with no journey.js code involved: a <pattern> plus one
-    // <image href="/404"> over a green rect painted solid white/blue instead
-    // of green). That directly violates the "never blank" guarantee the
-    // brief calls for, so on error this clears the href instead, which
-    // reverts the pattern to its pre-attach (verified transparent) state and
-    // lets the gradient show through as intended. overlayState still
-    // records 'failed' so missingOverlays keeps detecting it.
+    // Paint-state listeners are wired once at build so a late attach only
+    // has to flip href. Chromium quirk: a <pattern>'s <image> whose href
+    // fails to load does not fall back to transparent, it paints an opaque
+    // placeholder over the gradient rect and breaks "never blank". So on
+    // error the href is cleared, which reverts the pattern to its transparent
+    // pre-attach state; overlayState still records 'failed' so
+    // missingOverlays keeps detecting it.
     overlayImg.addEventListener('load', () => { band.overlayState = 'painted'; });
     overlayImg.addEventListener('error', () => { band.overlayState = 'failed'; overlayImg.removeAttribute('href'); });
-    // Same Chromium quirk, same fix, for the dirt-trail pattern: never leave
-    // a failed href in place.
+    // Same quirk, same fix, for the dirt-trail pattern.
     dirtImg.addEventListener('error', () => { dirtImg.removeAttribute('href'); });
     bands.push(band);
   }
@@ -417,7 +408,7 @@
       bandPath.setAttribute('stroke-linecap', 'round'); bandPath.setAttribute('opacity', '0.12');
       b.svg.appendChild(bandPath);
     } else {
-      // Painted dirt trail (KTD3): an ink edge line drawn first, slightly
+      // Painted dirt trail: an ink edge line drawn first, slightly
       // wider than the trail stroke so it peeks out as an outline, then the
       // dirt-tile pattern on top at full opacity. dStr geometry is unchanged.
       const inkEdge = document.createElementNS(NS, 'path');
@@ -452,8 +443,8 @@
     // Ground-detail sprites (scree/log/flower atlas cells or, flat-mode,
     // their vector predecessors) live in their own subgroup so the
     // window.__journeyDetailVectorCount check below can count just these —
-    // b.detail also holds unrelated holiday and birthday decorations
-    // appended later, which this unit doesn't touch.
+    // b.detail also holds the holiday and birthday decorations appended
+    // later, which keep their vector shapes.
     b.gdetail = document.createElementNS(NS, 'g');
     b.detail.appendChild(b.gdetail);
     b.shadows = document.createElementNS(NS, 'g');
@@ -462,9 +453,9 @@
 
   /* Ground details: scree, fallen logs, spring/summer flowers, winter drift,
      autumn litter. Not-flat mode replaces scree/log/flower with atlas cells
-     (R7); winter drift and autumn litter get no cell and are simply dropped,
+     ; winter drift and autumn litter get no cell and are simply dropped,
      since the winter overlay paints its own drifts and the autumn palette
-     carries the litter look (U4). Every branch still calls rnd() exactly as
+     carries the litter look. Every branch still calls rnd() exactly as
      many times as its flat-mode markup does, flat or not: this loop runs
      before grove/prop placement further down, and an extra or missing
      rnd() call here would shift that seeded sequence and move every tree on
@@ -520,20 +511,20 @@
   bands.forEach((b, i) => {
     b.gdetail.innerHTML = bandDh[i];
     // Collected once so update()'s per-frame lookahead attach/detach only
-    // ever sets/clears href, never re-queries the DOM (KTD4).
+    // ever sets/clears href, never re-queries the DOM.
     b.detailImgs = Array.from(b.gdetail.querySelectorAll('image.atlas'));
     // Same Chromium <pattern>-style quirk can hit a plain <image> too when
     // its href 404s mid-tile-decode; clearing href on error is cheap
     // insurance for the same "never blank" intent.
     b.detailImgs.forEach(im => im.addEventListener('error', () => im.removeAttribute('href')));
   });
-  // E9/U4: proof that no vector scree, flower or log path is left behind —
-  // scoped to b.gdetail (not all of b.detail, which also holds unrelated
-  // holiday/birthday decorations this unit doesn't touch).
+  // Smoke-test proof that no vector scree, flower or log path is left
+  // behind, scoped to b.gdetail (b.detail also holds the vector holiday
+  // and birthday decorations).
   window.__journeyDetailVectorCount = GROUND_FLAT ? undefined :
     bands.reduce((n, b) => n + b.gdetail.querySelectorAll('ellipse, rect, circle').length, 0);
 
-  // KTD4: reduced motion jumps the camera straight to its target instead of
+  // Reduced motion jumps the camera straight to its target instead of
   // gliding, so a band can enter the lookahead window and need to paint
   // within the very same frame as the jump — there is no glide time for a
   // fresh network fetch + decode to finish invisibly. Preloading every art
@@ -549,7 +540,7 @@
       .forEach(u => { if (u){ const im = new Image(); im.src = u; } });
   }
 
-  // Debug hook for the smoke script's lookahead scenario (E3/U4): a plain
+  // Debug hook for the smoke script's lookahead scenario: a plain
   // snapshot, not live references, so reading it can't itself perturb state.
   window.__journeyBands = () => bands.map(b => (
     {y0: b.y0, hidden: !!b.hidden, attached: !!b.attached, overlayFile: b.overlayFile, winter: !!b.snowImg}));
@@ -1312,16 +1303,17 @@
      per frame — the difference between smooth and janky on impatient
      scrolling. */
   let camDist = 0, lastT = 0;
-  // Capped ring of overlay-attach timestamps (KTD4/E2): the smoke script
-  // checks that no long task starts within 100ms of any of these.
+  // Capped ring of overlay-attach timestamps: the smoke script checks that
+  // no long task starts within 100ms of any of these.
   const attachTimes = [];
+  let frameCount = 0;
 
   function update(now){
-    // Frame-time budget for the smoke script (KTD7/U3): timed from the top of
+    // Frame-time budget for the smoke script: timed from the top of
     // update() to its last line, since that is the whole per-frame cost this
     // engine controls — the gap between rAF callbacks is pinned to the
     // display's refresh rate and tells us nothing about our own work.
-    const __statT0 = performance.now();
+    const statT0 = performance.now();
     const doc = document.documentElement;
     const prog = clamp(scrollY / (doc.scrollHeight - innerHeight), 0, 1);
     const target = prog * PLEN;
@@ -1350,28 +1342,28 @@
     const arrived = camProg > 0.012;
     // Counted alongside the existing cull passes below (no extra walk) for
     // the __journeyStats surface-count hook at the bottom of this function.
-    let __aliveBbs = 0, __aliveProps = 0, __aliveBands = 0;
-    let __attachedOverlays = 0, __missingOverlays = 0;
+    let aliveBbs = 0, aliveProps = 0, aliveBands = 0;
+    let attachedOverlays = 0, missingOverlays = 0;
     bbs.forEach(b => {
       const on = arrived && b.y > camY - 1500 && b.y < camY + 800;
-      if (on) __aliveBbs++;
+      if (on) aliveBbs++;
       if (on !== b.el.classList.contains('on')) b.el.classList.toggle('on', on);
     });
     props.forEach(pr => {
       const vis = pr.yMax > camY - 2400 && pr.yMax < camY + 900;
-      if (vis) __aliveProps++;
+      if (vis) aliveProps++;
       if (vis === !pr.hidden) return;
       pr.hidden = !vis;
       pr.el.style.display = vis ? '' : 'none';
     });
     bands.forEach(b => {
       const vis = b.y0 < camY + 1700 && b.y0 + BANDH > camY - 2400;
-      if (vis) __aliveBands++;
+      if (vis) aliveBands++;
       if (vis !== !b.hidden){
         b.hidden = !vis;
         b.svg.style.display = vis ? '' : 'none';
       }
-      // KTD4: lookahead is the visibility window widened by one BANDH on
+      // Lookahead is the visibility window widened by one BANDH on
       // each side, attached and detached only on a state change, same guard
       // pattern as b.hidden above. Reduced motion does NOT widen this
       // further — see the preload block above for how that profile is
@@ -1380,32 +1372,31 @@
       // Worst case: band tops fall in an open interval of 4100 + 2*1600 px
       // (visibility) + 2*1600 px (lookahead) = 8900 px, so at most
       // ceil(8900/1600) = 6 bands are attached at once; the visibility
-      // window alone gives ceil(5700/1600) = 4 alive. The plan wrote 5 for
-      // the attached bound; 6 is the real number and the smoke asserts it.
-      if (!GROUND_FLAT){
-        const ahead = b.y0 < camY + 1700 + BANDH && b.y0 + BANDH > camY - 2400 - BANDH;
-        if (ahead !== b.attached){
-          b.attached = ahead;
-          if (ahead){
-            b.attachedAt = performance.now();
-            attachTimes.push(b.attachedAt);
-            if (attachTimes.length > 64) attachTimes.shift();
-            b.overlayState = 'loading';
-            if (b.overlayUrl) b.overlayImg.setAttribute('href', b.overlayUrl);
-            if (b.snowImg && SNOW_URL) b.snowImg.setAttribute('href', SNOW_URL);
-            if (DIRT_URL) b.dirtImg.setAttribute('href', DIRT_URL);
-            if (ATLAS_URL) b.detailImgs.forEach(im => im.setAttribute('href', ATLAS_URL));
-          } else {
-            b.overlayImg.removeAttribute('href');
-            if (b.snowImg) b.snowImg.removeAttribute('href');
-            b.dirtImg.removeAttribute('href');
-            b.detailImgs.forEach(im => im.removeAttribute('href'));
-          }
+      // window alone gives ceil(5700/1600) = 4 alive. The smoke test asserts
+      // the 6-band bound.
+      if (GROUND_FLAT) return;
+      const ahead = b.y0 < camY + 1700 + BANDH && b.y0 + BANDH > camY - 2400 - BANDH;
+      if (ahead !== b.attached){
+        b.attached = ahead;
+        if (ahead){
+          b.attachedAt = statT0;
+          attachTimes.push(b.attachedAt);
+          if (attachTimes.length > 64) attachTimes.shift();
+          b.overlayState = 'loading';
+          if (b.overlayUrl) b.overlayImg.setAttribute('href', b.overlayUrl);
+          if (b.snowImg && SNOW_URL) b.snowImg.setAttribute('href', SNOW_URL);
+          if (DIRT_URL) b.dirtImg.setAttribute('href', DIRT_URL);
+          if (ATLAS_URL) b.detailImgs.forEach(im => im.setAttribute('href', ATLAS_URL));
+        } else {
+          b.overlayImg.removeAttribute('href');
+          if (b.snowImg) b.snowImg.removeAttribute('href');
+          b.dirtImg.removeAttribute('href');
+          b.detailImgs.forEach(im => im.removeAttribute('href'));
         }
-        if (b.attached) __attachedOverlays++;
-        if (vis && b.attached && b.overlayState !== 'painted' &&
-            performance.now() - b.attachedAt > 1000) __missingOverlays++;
       }
+      if (b.attached) attachedOverlays++;
+      if (vis && b.attached && b.overlayState !== 'painted' &&
+          statT0 - b.attachedAt > 1000) missingOverlays++;
     });
 
     {
@@ -1452,24 +1443,21 @@
 
     if (fanOpenEl && Math.abs(scrollY - fanScrollY) > 90) closeFan();
 
-    // Smoke-test hook (KTD7/U3): a plain object the browser smoke script
+    // Smoke-test hook: a plain object the browser smoke script
     // polls, so the pre-art baseline is measured with the same instrument
     // later units (overlays, motion) will be judged against. aliveBands and
     // aliveSurfaces reuse the counts above rather than re-walking the DOM;
     // aliveSurfaces = bands + props (which already holds groves) + billboards.
-    const __prevStats = window.__journeyStats;
     window.__journeyStats = {
       camY,
-      mk, season,  // exposed so the smoke script can locate a known fixture camp by month (AE5)
-      aliveBands: __aliveBands,
-      aliveSurfaces: __aliveBands + __aliveProps + __aliveBbs,
-      // Real values from the lookahead-attach state above (U4): 0/0 in flat
-      // mode, since nothing is ever attached there.
-      attachedOverlays: __attachedOverlays,
-      missingOverlays: __missingOverlays,
+      mk, season,  // lets the smoke script locate a fixture camp by month
+      aliveBands,
+      aliveSurfaces: aliveBands + aliveProps + aliveBbs,
+      attachedOverlays,   // both 0 in flat mode: nothing is ever attached
+      missingOverlays,
       attachTimes,
-      updateMs: performance.now() - __statT0,
-      frames: __prevStats ? __prevStats.frames + 1 : 1,
+      updateMs: performance.now() - statT0,
+      frames: ++frameCount,
       flat: GROUND_FLAT,
     };
   }

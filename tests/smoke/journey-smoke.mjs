@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
- * Browser smoke test for the alpine journey (KTD7/U3, extended for KTD1/
- * KTD3/KTD4/U4).
+ * Browser smoke test for the alpine journey. Plan:
+ * docs/plans/2026-09-06-1314-feat-illustrated-alpine-ground-plan.md
  *
  * What this measures and why:
  *   - "Frame time" here means the wall-clock duration of one journey.js
@@ -647,7 +647,7 @@ async function scenarioPalette(browser, baseUrl, sample) {
       bandsInfo: window.__journeyBands(), camY: window.__journeyStats.camY,
       hasPopup: !!document.querySelector('.bb-camp.here'),
     }));
-    const bandsInfo = read.bandsInfo, camY = read.camY, hasPopup = read.hasPopup, landedOffset = 0;
+    const bandsInfo = read.bandsInfo, camY = read.camY, hasPopup = read.hasPopup;
     const band = bandsInfo.find(b => camY >= b.y0 && camY < b.y0 + BANDH);
     // The world point at (camX, camY) always renders at the same fixed
     // screen anchor regardless of camX (the .tilt rotateX hinge sits at
@@ -690,7 +690,7 @@ async function scenarioPalette(browser, baseUrl, sample) {
     if (season === 'winter') swatches.push(winterOverlayAvg);
     const passFlags = pixels.map(p => withinPaletteTolerance(p, swatches, 40));
     results[season] = {
-      camp: camp.label, hasPopup, landedOffset,
+      camp: camp.label, hasPopup,
       overlayFile: band ? band.overlayFile : null,
       bandHasSnow: !!band && !!band.winter,
       passCount: passFlags.filter(Boolean).length,

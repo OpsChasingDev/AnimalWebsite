@@ -1,4 +1,4 @@
-"""Unit tests for the alpine art manifest loader (KTD9 / U4).
+"""Unit tests for the alpine art manifest loader.
 
 Plain unittest, not pytest, matching tests/test_fixture_mode.py. Run with:
 
@@ -11,20 +11,15 @@ to build app.ALPINE_MANIFEST.
 """
 import json
 import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "journey-sample.json"
-REAL_MANIFEST_PATH = REPO_ROOT / "static" / "images" / "alpine" / "manifest.json"
+from tests._support import (FIXTURE_PATH, REAL_MANIFEST_PATH, import_app_with_temp_state,
+                            reset_app_state)
 
-_STATE_DIR = tempfile.mkdtemp(prefix="alpine-manifest-test-state-")
-os.environ["SITE_STATE_DIR"] = _STATE_DIR
-sys.path.insert(0, str(REPO_ROOT))
-import app  # noqa: E402  (must follow the SITE_STATE_DIR override above)
+app = import_app_with_temp_state("alpine-manifest-test-state-")
 
 
 class LoadAlpineManifestTests(unittest.TestCase):
@@ -58,11 +53,7 @@ class LoadAlpineManifestTests(unittest.TestCase):
 
 class JourneyRouteAlpineTests(unittest.TestCase):
     def setUp(self):
-        app._model_cache.update(at=0.0, model=None, retry_at=0.0)
-        if hasattr(app, "_fixture_logged"):
-            for k in app._fixture_logged:
-                app._fixture_logged[k] = False
-        self.client = app.app.test_client()
+        self.client = reset_app_state(app)
 
     def test_journey_page_includes_window_alpine_with_real_assets(self):
         env = {"JOURNEY_FIXTURE": str(FIXTURE_PATH)}

@@ -1,5 +1,4 @@
-"""Tests for tools/gen_alpine_placeholders.py (U2 of the illustrated-alpine-
-ground plan). Covers the plan's seven placeholder-generator scenarios.
+"""Tests for tools/gen_alpine_placeholders.py. Covers the plan's seven placeholder-generator scenarios.
 
 Run with:
 
@@ -14,19 +13,14 @@ static/images/alpine/ are only ever read, never written, by this file.
 import json
 import random
 import shutil
-import sys
 from pathlib import Path
 
 import pytest
 from PIL import Image
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT))
+from tests._support import REAL_MANIFEST_PATH as REAL_MANIFEST  # noqa: E402  (adds the repo root to sys.path)
 
 import tools.gen_alpine_placeholders as gen  # noqa: E402
-
-REAL_MANIFEST = REPO_ROOT / "static" / "images" / "alpine" / "manifest.json"
-TOTAL_CAP_BYTES = 1.5 * 1024 * 1024
 
 # Column/row sampling stride used by the seam-wrap test, and the tolerance
 # for comparing a wrap pair against typical interior adjacent-column noise.
@@ -132,7 +126,7 @@ def test_check_fails_naming_category_when_asset_inflated(tmp_path, generated):
     path.write_bytes(path.read_bytes() + b"\x00" * (cap + 5000))
 
     total = sum((work / a["file"]).stat().st_size for a in data["assets"])
-    assert total < TOTAL_CAP_BYTES, "test setup should keep the total under 1.5 MB"
+    assert total < data["total_cap"], "test setup should keep the total under the manifest cap"
 
     ok, problems = gen.check(manifest_path, work, quiet=True)
     assert not ok
@@ -266,6 +260,7 @@ def test_total_bytes_under_cap(generated, manifest_data):
     sizes = [(a["file"], (out_dir / a["file"]).stat().st_size) for a in manifest_data["assets"]]
     total = sum(size for _, size in sizes)
     largest_three = sorted(sizes, key=lambda pair: -pair[1])[:3]
-    msg = (f"total art bytes {total} exceeds cap {int(TOTAL_CAP_BYTES)}; "
+    cap = manifest_data["total_cap"]
+    msg = (f"total art bytes {total} exceeds cap {cap}; "
            f"largest files: " + ", ".join(f"{name} ({size}B)" for name, size in largest_three))
-    assert total <= TOTAL_CAP_BYTES, msg
+    assert total <= cap, msg

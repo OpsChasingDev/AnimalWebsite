@@ -1,41 +1,29 @@
-"""Unit tests for the JOURNEY_FIXTURE hook in app.get_model() (KTD7).
+"""Unit tests for the JOURNEY_FIXTURE hook in app.get_model().
 
 Plain unittest, not pytest: pytest is not a project dependency and adding it
 is another unit's job. Run with:
 
     venv/bin/python -m unittest tests.test_fixture_mode -v
 
-SITE_STATE_DIR is set *before* importing app, because app._resolve_state_dir()
+SITE_STATE_DIR is set *before* importing app (see tests/_support.py), because app._resolve_state_dir()
 runs once at import time and its result (app.STATE_DIR / app._model_snapshot)
 is baked into module globals.
 """
 import json
 import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "journey-sample.json"
+from tests._support import FIXTURE_PATH, import_app_with_temp_state, reset_app_state
 
-_STATE_DIR = tempfile.mkdtemp(prefix="journey-fixture-test-state-")
-os.environ["SITE_STATE_DIR"] = _STATE_DIR
-sys.path.insert(0, str(REPO_ROOT))
-import app  # noqa: E402  (must follow the SITE_STATE_DIR override above)
+app = import_app_with_temp_state("journey-fixture-test-state-")
 
 
 class FixtureModeTests(unittest.TestCase):
     def setUp(self):
-        # Every test starts from a clean slate: no warm in-process cache, and
-        # the "log this only once" flags reset so each test can observe its
-        # own log line rather than being silenced by an earlier test's log.
-        app._model_cache.update(at=0.0, model=None, retry_at=0.0)
-        if hasattr(app, "_fixture_logged"):
-            for k in app._fixture_logged:
-                app._fixture_logged[k] = False
-        self.client = app.app.test_client()
+        self.client = reset_app_state(app)
 
     def _clean_env(self, **overrides):
         """A dict.patch base with JOURNEY_FIXTURE/App Service markers cleared,

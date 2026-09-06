@@ -1,19 +1,19 @@
 """Deterministic ink-and-brush placeholder art for the illustrated alpine ground.
 
-This script stands in for real Claude Design / hand-painted art (KTD6) until
+This script stands in for real Claude Design / hand-painted art until
 that art lands. It reads ``static/images/alpine/manifest.json`` — the single
 source of truth for file names, pixel sizes, atlas cell layouts and byte
 caps — and for every entry draws a simple placeholder in the ink-brush style
 described by ``docs/alpine-art-brief.md``: jittered-polyline brush strokes,
 stipple grain, flat palette fills and ink outlines. Every asset's randomness
 is seeded from its own file name (and, for atlas cells, the cell name too),
-so re-running the generator produces byte-identical output (KTD6's "the
+so re-running the generator produces byte-identical output (the "the
 build never waits on real art" only holds if the art is reproducible).
 
 Modes (see ``main()`` / the module docstring at the bottom for CLI usage):
 
 - default: draw every asset, WebP-encode it under its category's per-file
-  byte cap (KTD8), write it to disk, and rewrite the manifest's ``hash``
+  byte cap, write it to disk, and rewrite the manifest's ``hash``
   field for each file touched.
 - ``--check``: verify every manifest file exists at the right pixel size,
   with the right hash, under every byte cap. Exits 1 and prints every
@@ -21,7 +21,7 @@ Modes (see ``main()`` / the module docstring at the bottom for CLI usage):
 - ``--rehash``: recompute each manifest ``hash`` from the file already on
   disk, without regenerating any art. This is the one step needed after a
   real WebP is dropped in over a placeholder of the same name and size
-  (KTD9).
+ .
 - ``--only <file>``: restrict ``--rehash`` or the default (generate) mode to
   a single manifest entry, for fast iteration.
 
@@ -80,7 +80,7 @@ ROCK_NEUTRAL = _avg(SEASON["spring"]["rock"], SEASON["summer"]["rock"], SEASON["
 EVERGREEN_NEUTRAL = _avg(SEASON["spring"]["evergreen"], SEASON["summer"]["evergreen"], SEASON["autumn"]["evergreen"])
 
 # ---------------------------------------------------------------------------
-# WebP encoding (KTD8): lossy with alpha, quality stepped down until the
+# WebP encoding: lossy with alpha, quality stepped down until the
 # file fits its category's per-file cap; lossless is only attempted for the
 # three flat-fill tiles, and only if lossy can't make the cap.
 # ---------------------------------------------------------------------------
@@ -674,11 +674,12 @@ def rehash(manifest_path: Path, out_dir: Path, only: str = None, quiet: bool = T
         raise ValueError(f"no such asset in manifest: {only!r}")
     file_hashes, missing = {}, []
     for asset in targets:
-        p = out_dir / asset["file"]
-        if not p.exists():
+        try:
+            data = (out_dir / asset["file"]).read_bytes()
+        except FileNotFoundError:
             missing.append(asset["file"])
             continue
-        file_hashes[asset["file"]] = hashlib.sha256(p.read_bytes()).hexdigest()[:HASH_LEN]
+        file_hashes[asset["file"]] = hashlib.sha256(data).hexdigest()[:HASH_LEN]
     changed = _apply_hashes(manifest_path, file_hashes)
     if not quiet:
         if missing:
@@ -699,14 +700,14 @@ def check(manifest_path: Path, out_dir: Path, quiet: bool = False):
     total_bytes = 0
     for asset in manifest["assets"]:
         file_name, cat = asset["file"], asset["category"]
-        path = out_dir / file_name
-        if not path.exists():
+        try:
+            data = (out_dir / file_name).read_bytes()
+        except FileNotFoundError:
             problems.append(f"MISSING {file_name} (category {cat})")
             continue
-        data = path.read_bytes()
         size_bytes = len(data)
         try:
-            with Image.open(path) as im:
+            with Image.open(io.BytesIO(data)) as im:
                 actual_size = [im.width, im.height]
         except Exception as exc:  # noqa: BLE001 - report and keep checking
             problems.append(f"UNREADABLE {file_name}: {exc}")

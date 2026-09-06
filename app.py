@@ -69,24 +69,32 @@ SAFE_IMG_PATH_RE = re.compile(
 # Accent fallback rotation for pets whose meta.json omits "color".
 FALLBACK_COLORS = ["#8A4E76", "#C9718A", "#3F7D77", "#C98A3D", "#5B7FA6", "#A6702E"]
 
-ALPINE_MANIFEST_PATH = Path(__file__).parent / "static" / "images" / "alpine" / "manifest.json"
+ALPINE_MANIFEST_PATH = Path(app.static_folder) / "images" / "alpine" / "manifest.json"
 _EMPTY_ALPINE_MANIFEST = {"version": 1, "assets": []}
+
+
+def _read_json_file(label: str, path, log, fallback_note: str):
+    """Parse a JSON file, logging an unreadable file and a corrupt one as two
+    distinct messages through `log`. Returns None on either failure so the
+    caller picks its own fallback."""
+    try:
+        return json.loads(Path(path).read_text())
+    except OSError as e:
+        log("%s %s unreadable (%s); %s", label, path, e, fallback_note)
+    except ValueError as e:
+        log("%s %s is not valid JSON (%s); %s", label, path, e, fallback_note)
+    return None
 
 
 def _load_alpine_manifest(path) -> dict:
     """Read the alpine art manifest once. A missing or corrupt manifest is not
-    fatal (KTD9): journey.js treats an empty manifest as the `?ground=flat`
-    state, so the ground still renders, just without the painted overlays.
-    Factored out (instead of inlined at import) so a unittest can point it at
-    a temp path without touching the real static/ tree.
+    fatal: journey.js treats an empty manifest as the `?ground=flat` state,
+    so the ground still renders, just without the painted overlays. Factored
+    out (instead of inlined at import) so a unittest can point it at a temp
+    path without touching the real static/ tree.
     """
-    try:
-        return json.loads(Path(path).read_text())
-    except OSError as e:
-        app.logger.error("alpine manifest %s unreadable (%s); using an empty manifest", path, e)
-    except ValueError as e:
-        app.logger.error("alpine manifest %s is not valid JSON (%s); using an empty manifest", path, e)
-    return dict(_EMPTY_ALPINE_MANIFEST)
+    data = _read_json_file("alpine manifest", path, app.logger.error, "using an empty manifest")
+    return data if data is not None else dict(_EMPTY_ALPINE_MANIFEST)
 
 
 # Read once at import, like the season tables: the manifest almost never
@@ -367,7 +375,7 @@ def _img_url(path: str, width: int) -> str:
     own origin.
 
     journey.js keeps a second URL builder (assetUrl(), for ALPINE_MANIFEST
-    entries) on purpose (KTD9): this one proxies blob photos through auth and
+    entries) on purpose: this one proxies blob photos through auth and
     thumbnailing, that one serves art shipped with the app straight from
     static/ with a manifest-hash cache buster. Different origins, different
     cache lifetimes — not to be merged.
@@ -568,7 +576,7 @@ _fixture_logged: dict = {"active": False, "ignored": False}
 
 def get_model() -> dict:
     # JOURNEY_FIXTURE lets the journey run from a saved model JSON with no
-    # storage credentials, so U3's browser smoke script (and a laptop) can
+    # storage credentials, so the browser smoke script (and a laptop) can
     # render the page without az login. It must never leak onto the live
     # site, so the same App Service check _resolve_state_dir() uses (an
     # instance ID plus /home as HOME) wins over the env var, loudly: a
@@ -581,17 +589,9 @@ def get_model() -> dict:
                 app.logger.warning(
                     "JOURNEY_FIXTURE=%s ignored: running on App Service", fixture_path)
         else:
-            try:
-                fixture_model = json.loads(Path(fixture_path).read_text())
-            except OSError as e:
-                app.logger.warning(
-                    "JOURNEY_FIXTURE=%s unreadable (%s); falling back to the normal model",
-                    fixture_path, e)
-            except ValueError as e:
-                app.logger.warning(
-                    "JOURNEY_FIXTURE=%s is not valid JSON (%s); falling back to the normal model",
-                    fixture_path, e)
-            else:
+            fixture_model = _read_json_file(
+                "JOURNEY_FIXTURE", fixture_path, app.logger.warning, "falling back to the normal model")
+            if fixture_model is not None:
                 if not _fixture_logged["active"]:
                     _fixture_logged["active"] = True
                     app.logger.info(
