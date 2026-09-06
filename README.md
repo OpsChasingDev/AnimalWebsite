@@ -60,6 +60,12 @@ pets/
 - `/img?path=...&w=...` is a resize-and-cache proxy so the trail loads small
   images; the lightbox loads larger ones.
 - `/api/journey` returns the computed journey model as JSON.
+- The ground, trees, rocks, water and mountain backdrop are an illustrated
+  ink-and-brush art pack that lives in `static/images/alpine/`, driven by
+  `static/images/alpine/manifest.json` (file names, pixel sizes and byte
+  budgets for every asset). Until real art lands, that folder holds
+  deterministic placeholder art. See `docs/alpine-art-brief.md` for the
+  style sheet, palettes and full asset list.
 
 ## Development
 
