@@ -117,6 +117,15 @@
   // painted overlays": the flat season gradient carries the ground instead,
   // which is always present so the page never renders blank.
   const GROUND_FLAT = params.get('ground') === 'flat' || !ART['ground-overlay-a.webp'];
+  // Phone-budget levers, settable from the URL so a staging round on the
+  // iPhone can isolate what blows the memory ceiling without a rebuild:
+  //   ?snow=off   skip the winter snow rects entirely
+  //   ?look=0     attach art only to visible bands (default: one band ahead)
+  //   ?tile=512   pattern tile size in world px (default 1024; smaller tile
+  //               = smaller per-band pattern buffer, finer grain)
+  const GROUND_SNOW = params.get('snow') !== 'off';
+  const LOOKAHEAD_BANDS = params.has('look') ? Math.max(0, Number(params.get('look')) || 0) : 1;
+  const TILE = [256, 512, 1024].includes(Number(params.get('tile'))) ? Number(params.get('tile')) : 1024;
   const INK_COLOR = '#241F1A';  // docs/alpine-art-brief.md section 2
   const ATLAS = ART['tree-rock-atlas.webp'];
   const ATLAS_CELLS = {};
@@ -213,9 +222,9 @@
     inkPattern.id = 'ink' + bi;
     inkPattern.setAttribute('patternUnits', 'userSpaceOnUse');
     inkPattern.setAttribute('x', '0'); inkPattern.setAttribute('y', '0');
-    inkPattern.setAttribute('width', '1024'); inkPattern.setAttribute('height', '1024');
+    inkPattern.setAttribute('width', TILE); inkPattern.setAttribute('height', TILE);
     const overlayImg = document.createElementNS(NS, 'image');
-    overlayImg.setAttribute('width', '1024'); overlayImg.setAttribute('height', '1024');
+    overlayImg.setAttribute('width', TILE); overlayImg.setAttribute('height', TILE);
     inkPattern.appendChild(overlayImg);
     bdefs.appendChild(inkPattern);
     // Dirt-tile pattern for the trail surface (built below, once dStr and
@@ -249,12 +258,17 @@
     // Winter gets its own painted overlay (drifts + bare grass) because a
     // transparent grain doesn't read as snow (docs/alpine-art-brief.md
     // section 2). It is drawn above the neutral grain, only over the
-    // winterRanges that cross this band, through a mask whose gradient fades
-    // in step with the season gradient underneath. One snow pattern per
-    // band; its image href is attached and detached with the band.
+    // winterRanges that cross this band. The fade at each end matches the
+    // gradient's distance but is faked with a few fill-opacity strips:
+    // never an SVG <mask> or element opacity here, because on iOS each of
+    // those allocates offscreen buffers the size of the masked rect at 3x
+    // (about 130 MB per winter band), which crash-reloaded the tab.
+    // fill-opacity is applied per pixel with no extra buffer. One snow
+    // pattern per band; its image href is attached and detached with the band.
     let snowImg = null;
     const rx = -1100, rw = W + 2200;
-    winterRanges.forEach((r, k) => {
+    const FADE_STEPS = 4;
+    if (GROUND_SNOW) winterRanges.forEach(r => {
       const top = Math.max(r.a, y0 - over), bot = Math.min(r.b, y0 + BANDH + over);
       if (bot <= top) return;
       if (!snowImg){
@@ -262,40 +276,30 @@
         snowPattern.id = 'snow' + bi;
         snowPattern.setAttribute('patternUnits', 'userSpaceOnUse');
         snowPattern.setAttribute('x', '0'); snowPattern.setAttribute('y', '0');
-        snowPattern.setAttribute('width', '1024'); snowPattern.setAttribute('height', '1024');
+        snowPattern.setAttribute('width', TILE); snowPattern.setAttribute('height', TILE);
         snowImg = document.createElementNS(NS, 'image');
-        snowImg.setAttribute('width', '1024'); snowImg.setAttribute('height', '1024');
+        snowImg.setAttribute('width', TILE); snowImg.setAttribute('height', TILE);
         snowPattern.appendChild(snowImg);
         bdefs.appendChild(snowPattern);
         snowImg.addEventListener('error', () => snowImg.removeAttribute('href'));
       }
-      const gid = `snowg${bi}_${k}`, mid = `snowm${bi}_${k}`;
-      const grad = document.createElementNS(NS, 'linearGradient');
-      grad.id = gid; grad.setAttribute('gradientUnits', 'userSpaceOnUse');
-      grad.setAttribute('x1', '0'); grad.setAttribute('y1', r.a);
-      grad.setAttribute('x2', '0'); grad.setAttribute('y2', r.b);
-      const f = Math.min(0.5, SEASON_FADE / (r.b - r.a));
-      [[0, 0], [f, 1], [1 - f, 1], [1, 0]].forEach(([off, o]) => {
-        const st = document.createElementNS(NS, 'stop');
-        st.setAttribute('offset', (off * 100).toFixed(2) + '%');
-        st.setAttribute('stop-color', '#fff'); st.setAttribute('stop-opacity', o);
-        grad.appendChild(st);
-      });
-      bdefs.appendChild(grad);
-      const mask = document.createElementNS(NS, 'mask');
-      mask.id = mid; mask.setAttribute('maskUnits', 'userSpaceOnUse');
-      mask.setAttribute('x', rx); mask.setAttribute('y', top);
-      mask.setAttribute('width', rw); mask.setAttribute('height', bot - top);
-      const mr = document.createElementNS(NS, 'rect');
-      mr.setAttribute('x', rx); mr.setAttribute('y', top);
-      mr.setAttribute('width', rw); mr.setAttribute('height', bot - top);
-      mr.setAttribute('fill', `url(#${gid})`);
-      mask.appendChild(mr); bdefs.appendChild(mask);
-      const sr = document.createElementNS(NS, 'rect');
-      sr.setAttribute('x', rx); sr.setAttribute('y', top);
-      sr.setAttribute('width', rw); sr.setAttribute('height', bot - top);
-      sr.setAttribute('fill', `url(#snow${bi})`); sr.setAttribute('mask', `url(#${mid})`);
-      bsvg.appendChild(sr);
+      const fade = Math.min(SEASON_FADE, (r.b - r.a) / 2);
+      const strip = (y1, y2, alpha) => {
+        const a = Math.max(y1, top), b = Math.min(y2, bot);
+        if (b <= a) return;
+        const sr = document.createElementNS(NS, 'rect');
+        sr.setAttribute('x', rx); sr.setAttribute('y', a);
+        sr.setAttribute('width', rw); sr.setAttribute('height', b - a);
+        sr.setAttribute('fill', `url(#snow${bi})`);
+        if (alpha < 1) sr.setAttribute('fill-opacity', alpha.toFixed(2));
+        bsvg.appendChild(sr);
+      };
+      for (let i = 0; i < FADE_STEPS; i++){
+        const alpha = (i + 1) / (FADE_STEPS + 1), h = fade / FADE_STEPS;
+        strip(r.a + i * h, r.a + (i + 1) * h, alpha);             // fade in
+        strip(r.b - (i + 1) * h, r.b - i * h, alpha);             // fade out
+      }
+      strip(r.a + fade, r.b - fade, 1);                            // core
     });
     const band = {
       svg: bsvg, y0, overlayFile, overlayImg, dirtImg, snowImg,
@@ -428,7 +432,7 @@
       const fallbackPath = document.createElementNS(NS, 'path');
       fallbackPath.setAttribute('d', dStr); fallbackPath.setAttribute('fill', 'none');
       fallbackPath.setAttribute('stroke', '#5C5137'); fallbackPath.setAttribute('stroke-width', '120');
-      fallbackPath.setAttribute('stroke-linecap', 'round'); fallbackPath.setAttribute('opacity', '0.12');
+      fallbackPath.setAttribute('stroke-linecap', 'round'); fallbackPath.setAttribute('stroke-opacity', '0.12');
       b.svg.appendChild(fallbackPath);
       // Painted dirt trail: an ink edge line drawn first, slightly
       // wider than the trail stroke so it peeks out as an outline, then the
@@ -436,12 +440,12 @@
       const inkEdge = document.createElementNS(NS, 'path');
       inkEdge.setAttribute('d', dStr); inkEdge.setAttribute('fill', 'none');
       inkEdge.setAttribute('stroke', INK_COLOR); inkEdge.setAttribute('stroke-width', '126');
-      inkEdge.setAttribute('stroke-linecap', 'round'); inkEdge.setAttribute('opacity', '.35');
+      inkEdge.setAttribute('stroke-linecap', 'round'); inkEdge.setAttribute('stroke-opacity', '.35');
       b.svg.appendChild(inkEdge);
       const dirtPath = document.createElementNS(NS, 'path');
       dirtPath.setAttribute('d', dStr); dirtPath.setAttribute('fill', 'none');
       dirtPath.setAttribute('stroke', b.dirtFill); dirtPath.setAttribute('stroke-width', '120');
-      dirtPath.setAttribute('stroke-linecap', 'round'); dirtPath.setAttribute('opacity', '1');
+      dirtPath.setAttribute('stroke-linecap', 'round');
       b.svg.appendChild(dirtPath);
     }
     if (creekY + 160 > b.y0 && creekY - 160 < b.y0 + BANDH){
@@ -458,7 +462,9 @@
     dotsPath.setAttribute('d', dStr); dotsPath.setAttribute('fill', 'none');
     dotsPath.setAttribute('stroke', GROUND_FLAT ? '#6B5C40' : INK_COLOR); dotsPath.setAttribute('stroke-width', '13');
     dotsPath.setAttribute('stroke-linecap', 'round'); dotsPath.setAttribute('stroke-dasharray', '0.01 42');
-    dotsPath.setAttribute('opacity', GROUND_FLAT ? '1' : '.45');
+    // stroke-opacity, not opacity: element opacity allocates an offscreen
+    // buffer per band on iOS (see the snow strips above for the same rule).
+    if (!GROUND_FLAT) dotsPath.setAttribute('stroke-opacity', '.45');
     b.svg.appendChild(dotsPath);
     b.detail = document.createElementNS(NS, 'g');
     b.svg.appendChild(b.detail);
@@ -1406,7 +1412,8 @@
       // window alone gives ceil(5700/1600) = 4 alive. The smoke test asserts
       // the 6-band bound.
       if (GROUND_FLAT) return;
-      const ahead = b.y0 < camY + 1700 + BANDH && b.y0 + BANDH > camY - 2400 - BANDH;
+      const look = LOOKAHEAD_BANDS * BANDH;
+      const ahead = b.y0 < camY + 1700 + look && b.y0 + BANDH > camY - 2400 - look;
       if (ahead !== b.attached){
         b.attached = ahead;
         if (ahead){
