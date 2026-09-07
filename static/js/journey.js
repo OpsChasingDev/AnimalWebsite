@@ -129,6 +129,7 @@
   const GROUND_SPRITES = params.get('sprites') !== 'off'; // ?sprites=off no atlas detail sprites
   const GROUND_WATER = params.get('water') !== 'off';     // ?water=off plain teal strokes, no water/bank tiles (U6)
   const GROUND_MOTION = params.get('motion') !== 'off';   // ?motion=off no grass sway / creek flow elements (U8)
+  const GROUND_RANGE = params.get('range') !== 'off';     // ?range=off no trail-end range, tree line or path tail (U7)
   const LOOKAHEAD_BANDS = params.has('look') ? Math.max(0, Number(params.get('look')) || 0) : 1;
   const TILE = [256, 512, 1024].includes(Number(params.get('tile'))) ? Number(params.get('tile')) : 256;
   const ART_TILE = 1024;  // world px per overlay image; the art is 1024 px square
@@ -150,6 +151,14 @@
   const WATER_TILE = 256;
   const SNOW_URL = assetUrl('ground-overlay-winter.webp');
   const ATLAS_URL = assetUrl('tree-rock-atlas.webp');
+  // U7 (trail-end range): the three backdrop paintings stand as upright
+  // props on the ground past the trail's end. Built only when all three
+  // are in the manifest; ?range=off or flat mode leaves the trail's end
+  // exactly as it was (the old vector ridge is gone either way).
+  const RANGE_FILES = ['backdrop-centre-range.webp', 'backdrop-left-flank.webp', 'backdrop-right-flank.webp'];
+  const RANGE_URLS = RANGE_FILES.map(assetUrl);
+  const RANGE_ART = RANGE_FILES.map(n => ART[n]);
+  const PAINT_RANGE = !GROUND_FLAT && GROUND_RANGE && RANGE_URLS.every(Boolean);
   // Atlas load state, tracked once globally (one shared asset decoded once
   // for every band, not per-band) via a representative probe Image rather
   // than every detail <image> tag; folded into missingOverlays below the
@@ -644,6 +653,13 @@
   // Debug hook for the smoke's U6 scenario: where the water is.
   window.__journeyWater = { creekY, bridgeX: cx, bridgeRot, pond: pondPos, painted: PAINT_WATER, tries: creekTries };
 
+  // U7: the trail's end point and the range's base. dVis is the geometry the
+  // visible strokes draw (U2 appends the tail into the tree line there);
+  // guideProbe, PLEN and lut keep dStr, so the camera, the scroll height
+  // and every crossing helper are unchanged by the range.
+  const RANGE_END = atDist(PLEN);
+  const RANGE_BASE_Y = RANGE_END.y - 110;
+  const dVis = dStr;
   bands.forEach((b, bandIdx) => {
     if (GROUND_FLAT){
       // ?ground=flat (or an empty manifest) is a faithful rollback to
@@ -857,7 +873,9 @@
     el.innerHTML = html;
     map.appendChild(el);
     if (opts.shadow) addShadow(x, y, opts.shadow);
-    props.push({el, y, yMin: y, yMax: y});
+    // far: an optional wider cull window (world px ahead of the camera) for
+    // the trail-end range; every ordinary prop keeps the 2400 default.
+    props.push({el, y, yMin: y, yMax: y, far: opts.far});
     return el;
   }
 
@@ -1708,12 +1726,40 @@
   }
   window.__journeyMotion = { on: MOTION, sway: swayPlaced.map(s => ({x: s.x, y: s.y})) };
 
+  /* ---------- U7: the trail-end range ----------
+     Three painted planes stand on the ground about 110 world px past the
+     trail's end. The world's far edge is above the frame everywhere else,
+     so this is the one place mountains can stand and be seen without a
+     camera change (the screen-space backdrop that needed a lower camera
+     was abandoned). They are ordinary props: an <img> in a counter-tilted
+     .prop, one GPU surface each on iOS with no pattern, mask or opacity.
+     far: the range displays in the same frame as band 0 does (a band shows
+     while y0 + BANDH > camY - 2400), never earlier, so it cannot float over
+     ground that is still hidden; on desktop that distance is above the
+     frame. The .range CSS class adds translateZ(40px) so the ground band
+     never paints over the planes (Chromium sorted the band first at some
+     camera positions in the probe). A painting that fails to load hides
+     its own <img>; the other planes stay. Nothing here calls rnd(). */
+  const rangeFar = baseY => (BAND0 + BANDH + 2400) - baseY;
+  if (PAINT_RANGE){
+    const rangeImg = i => {
+      const [w, h] = RANGE_ART[i].size;
+      return `<img src="${RANGE_URLS[i]}" width="${w}" height="${h}" alt="">`;
+    };
+    const planes = [
+      prop(CX - 1680, RANGE_BASE_Y, rangeImg(1), {cls: 'range', far: rangeFar(RANGE_BASE_Y)}),
+      prop(CX + 1680, RANGE_BASE_Y, rangeImg(2), {cls: 'range', far: rangeFar(RANGE_BASE_Y)}),
+      prop(CX, RANGE_BASE_Y, rangeImg(0), {cls: 'range', far: rangeFar(RANGE_BASE_Y)}),
+    ];
+    planes.forEach(el => el.querySelector('img').addEventListener('error', ev => { ev.target.hidden = true; }));
+    window.__journeyRange = { baseY: RANGE_BASE_Y, endY: RANGE_END.y, far: rangeFar(RANGE_BASE_Y) };
+  }
+
   /* ---------- camera ---------- */
   const intro = document.getElementById('intro');
   const meterYr = document.getElementById('meterYr');
   const endnote = document.getElementById('endnote');
   const zoom = document.getElementById('zoom');
-  const ridge = document.getElementById('ridgeInner');
   const spacer = document.getElementById('spacer');
   spacer.style.height = Math.round(PLEN * 1.12 + innerHeight) + 'px';
   let lastIntro = null, lastLabel = '', lastMmx = -1, lastMmy = -1, lastEnd = null;
@@ -1759,7 +1805,6 @@
     const s = clamp(innerWidth / 1150, 0.52, 1);
     zoom.style.transform = `scale(${s.toFixed(3)})`;
     map.style.transform = `translate3d(${(-camX).toFixed(1)}px, ${(-camY).toFixed(1)}px, 0)`;
-    if (ridge) ridge.style.transform = `translateX(${(-camX * 0.045).toFixed(1)}px)`;
 
     const arrived = camProg > 0.012;
     // Counted alongside the existing cull passes below (no extra walk) for
@@ -1772,7 +1817,7 @@
       if (on !== b.el.classList.contains('on')) b.el.classList.toggle('on', on);
     });
     props.forEach(pr => {
-      const vis = pr.yMax > camY - 2400 && pr.yMax < camY + 900;
+      const vis = pr.yMax > camY - (pr.far || 2400) && pr.yMax < camY + 900;
       if (vis) aliveProps++;
       if (vis === !pr.hidden) return;
       pr.hidden = !vis;
