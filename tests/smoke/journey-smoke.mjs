@@ -882,7 +882,12 @@ async function scenarioWater(browser, baseUrl, waterAvg, { query = '', block = n
       // the same rule as journey.js: the card's own half-width plus the deck's reach
       return Math.abs(bx - w.bridgeX) <= b.offsetWidth / 2 + 130 && by >= w.creekY && by - 420 <= w.creekY + 94;
     }).length;
-    return { creekBands, creekGroups, paintedCreeks, bridges, pondGroups, paintedPonds, shimmer, animated, bridgeBlockers };
+    // no billboard stands on the pond or in front of it (same rule as journey.js)
+    const pondBlockers = !w.pond ? 0 : Array.from(document.querySelectorAll('#map > .bb')).filter(b => {
+      const bx = parseFloat(b.style.left), by = parseFloat(b.style.top);
+      return Math.abs(bx - w.pond.x) < b.offsetWidth / 2 + 252 && w.pond.y - 170 < by && by < w.pond.y + 570;
+    }).length;
+    return { creekBands, creekGroups, paintedCreeks, bridges, pondGroups, paintedPonds, shimmer, animated, bridgeBlockers, pondBlockers };
   }, BANDH);
   // Land the camera on the creek's centre line and sample across it.
   await bisectScroll(page, maxY, () => window.__journeyStats.camY, water.creekY + 30, { increasing: false, tol: 2 });
@@ -1198,6 +1203,7 @@ async function main() {
         ['every creek band is painted with the water tile', r.paintedCreeks === r.creekBands],
         ['the bridge sits on the creek in every creek band', r.bridges === r.creekBands],
         ['no billboard stands in front of the bridge', r.bridgeBlockers === 0],
+        ['no billboard stands on or in front of the pond', r.pondBlockers === 0],
         ['the pond is painted with the water tile in every pond band', r.pondGroups > 0 && r.paintedPonds === r.pondGroups],
         ['no shimmer dash and no running animation inside any band SVG', r.shimmer === 0 && r.animated === 0],
         ['water pixels across the creek read as palette teal (>= 30% of the sampled strip)', r.tealShare >= 0.3],
