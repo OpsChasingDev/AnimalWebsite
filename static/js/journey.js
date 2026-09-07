@@ -127,6 +127,8 @@
   const GROUND_INK = params.get('ink') !== 'off';        // ?ink=off   no brush-grain overlay rect
   const GROUND_DIRT = params.get('dirt') !== 'off';      // ?dirt=off  plain trail stroke, no dirt pattern
   const GROUND_SPRITES = params.get('sprites') !== 'off'; // ?sprites=off no atlas detail sprites
+  const GROUND_WATER = params.get('water') !== 'off';     // ?water=off plain teal strokes, no water/bank tiles (U6)
+  const GROUND_MOTION = params.get('motion') !== 'off';   // ?motion=off no grass sway / creek flow elements (U8)
   const LOOKAHEAD_BANDS = params.has('look') ? Math.max(0, Number(params.get('look')) || 0) : 1;
   const TILE = [256, 512, 1024].includes(Number(params.get('tile'))) ? Number(params.get('tile')) : 256;
   const ART_TILE = 1024;  // world px per overlay image; the art is 1024 px square
@@ -136,6 +138,16 @@
   ((ATLAS && ATLAS.cells) || []).forEach(c => { ATLAS_CELLS[c.name] = c; });
   const ATLAS_SIZE = ATLAS ? ATLAS.size : [530, 980];
   const DIRT_URL = assetUrl('dirt-trail-tile.webp');
+  const WATER_URL = assetUrl('water-tile.webp'), BANK_URL = assetUrl('bank-tile.webp');
+  // U6: the creek and pond are painted only when both tiles exist; flat mode
+  // and ?water=off keep the plain strokes. The tiles are stroke paint
+  // servers, so like the dirt trail they are the sanctioned small-tile
+  // <pattern> exception (256 px): two patterns per band that carries water,
+  // three bands on the fixture (the pond straddles a seam). Measured on the
+  // WebKit probe at iPhone 13 scale: about 30 MB of GPU memory, painted 202
+  // vs 171 MB with ?water=off, against a 116 MB flat build.
+  const PAINT_WATER = !GROUND_FLAT && GROUND_WATER && !!WATER_URL && !!BANK_URL;
+  const WATER_TILE = 256;
   const SNOW_URL = assetUrl('ground-overlay-winter.webp');
   const ATLAS_URL = assetUrl('tree-rock-atlas.webp');
   // Atlas load state, tracked once globally (one shared asset decoded once
@@ -235,6 +247,21 @@
     const bsvg = document.createElementNS(NS, 'svg');
     bsvg.setAttribute('width', W + 2200); bsvg.setAttribute('height', BANDH + over);
     bsvg.setAttribute('viewBox', `-1100 ${y0 - over} ${W + 2200} ${BANDH + over}`);
+    // Every band strokes the whole trail path, and band svgs keep
+    // overflow:visible, so without a clip the nearer band's trail paints
+    // over the previous (farther) band's creek and bridge. A rect clipPath
+    // is a scissor (no buffer, see the GPU rules above).
+    const bandClip = document.createElementNS(NS, 'clipPath');
+    bandClip.id = 'bandclip' + bi;
+    const bandClipRect = document.createElementNS(NS, 'rect');
+    // The clip keeps this band's trail out of FARTHER bands only (it starts
+    // at this band's top and runs to the world's end). Nearer bands paint
+    // later and overpaint it anyway, so the seam paint structure is exactly
+    // what it was before the clip existed; a clip that ended at the band's
+    // bottom instead left a hairline where two clip edges met.
+    bandClipRect.setAttribute('x', -1100); bandClipRect.setAttribute('y', y0 - over);
+    bandClipRect.setAttribute('width', W + 2200); bandClipRect.setAttribute('height', NB * BANDH + 8000);
+    bandClip.appendChild(bandClipRect);
     bsvg.style.left = '-1100px'; bsvg.style.top = (y0 - over) + 'px';
     const bdefs = document.createElementNS(NS, 'defs');
     const bgrad = document.createElementNS(NS, 'linearGradient');
@@ -250,6 +277,7 @@
     });
     bdefs.appendChild(bgrad);
     bsvg.appendChild(bdefs);
+    bdefs.appendChild(bandClip);
     const bg = document.createElementNS(NS, 'rect');
     bg.setAttribute('x', -1100); bg.setAttribute('y', y0 - over);
     bg.setAttribute('width', W + 2200); bg.setAttribute('height', BANDH + over);
@@ -355,7 +383,7 @@
     map.appendChild(bsvg);
 
     const band = {
-      svg: bsvg, y0, overlayFile, inkImgs, dirtImg, snowImgs,
+      svg: bsvg, y0, overlayFile, inkImgs, dirtImg, snowImgs, clipId: 'bandclip' + bi,
       overlayUrl: assetUrl(overlayFile), dirtFill: `url(#dirt${bi})`,
       attached: false, attachedAt: 0, overlayState: 'loading', dirtState: 'loading', detailImgs: [],
     };
@@ -430,33 +458,163 @@
   /* creek + pond in the two widest quiet stretches */
   const gapList = pts.slice(1).map((p, i) => ({y0: pts[i].y, y1: p.y, size: pts[i].y - p.y}))
                      .sort((a, b) => b.size - a.size);
-  const creekY = gapList.length ? (gapList[0].y0 + gapList[0].y1) / 2 : LEN / 2;
-  const pondG = gapList.length > 1 ? gapList[1] : null;
+  // The creek wants a quiet stretch, but every billboard stands up about
+  // 420 world px of the ground behind it, wider than most stretches, so a
+  // crossing centred in a gap lands behind the photo at the gap's near end.
+  // The trail winds, though: pick the widest gap and crossing where the
+  // bridge sits more than a billboard's half-width to the side of that
+  // event (or fully beyond its shadow), so the bridge stays clickable-clear.
+  // Where does the trail cross a given row? trailXAtY() is ambiguous on an
+  // S-bend (the trail doubles back over the same rows), so the crossings
+  // are read off the sampled trail polyline instead: one entry per sign
+  // change, with the crossing x and the trail's angle from vertical there.
+  const trailCrossings = (y) => {
+    const out = [];
+    for (let i = 1; i <= SAMPLES; i++){
+      const a = lut[i - 1], b = lut[i];
+      if ((a.y - y) * (b.y - y) > 0 || a.y === b.y) continue;
+      const t = (y - a.y) / (b.y - a.y);
+      // direction over a longer stretch so the angle is not sample noise
+      const p0 = lut[Math.max(0, i - 12)], p1 = lut[Math.min(SAMPLES, i + 12)];
+      const dx = p1.x - p0.x, dy = p1.y - p0.y;
+      out.push({x: a.x + (b.x - a.x) * t, angle: Math.atan2(dx, Math.abs(dy) || 1) * 180 / Math.PI});
+    }
+    return out;
+  };
+  // A bridge needs exactly one crossing of the deck's row.
+  const bridgeSpot = (cy) => {
+    const c = trailCrossings(cy + 30);
+    return c.length === 1 ? c[0] : null;
+  };
+  // Clearance is sized to the billboard in question: the union's two pet
+  // circles reach about 280 px either side of its point, a camp card 135;
+  // plus the rotated deck's reach (about 110) and a margin.
+  const bbHalf = p => (p.e && p.e.type === 'union') ? 290 : 140;
+  const bridgeClear = (cy, near) => {
+    const spot = bridgeSpot(cy);
+    if (!spot) return false;
+    return !near || Math.abs(spot.x - near.x) > bbHalf(near) + 130 || cy + 94 < near.y - 420;
+  };
+  // The squirrel's tree and the deer are placed later at fixed fractions of
+  // the trail; neither belongs in the water, so their stretches are skipped.
+  const critterYs = [atDist(PLEN * 0.34).y, atDist(PLEN * 0.56).y];
+  const critterFree = (y, r) => critterYs.every(cy => Math.abs(cy - y) > r);
+  let creekY = null, creekGap = null;
+  const creekTries = [];   // diagnostics for the smoke and for tuning
+  // Scan every quiet stretch in 20 px steps and keep the clear crossing
+  // where the trail is closest to square-on; the gaps here are only about
+  // 400 px, so a handful of fixed fractions would miss most of each one.
+  // The trail begins with a straight 700 px stub below the first event (see
+  // dStr): no events, no billboard standing in front of it, a square
+  // crossing on the first screen, which is where the plan wanted the creek.
+  const stubGap = pts.length ? {y0: pts[0].y + 700, y1: pts[0].y, size: 700, stub: true} : null;
+  let best = null;
+  for (const g of (stubGap ? [stubGap] : []).concat(gapList.slice(0, 6))){
+    if (g.size < 300) continue;
+    if (!critterFree((g.y0 + g.y1) / 2, 360)){ creekTries.push({y0: g.y0, size: g.size, skip: 'critter'}); continue; }
+    const near = g.stub ? null : pts.find(p => p.y === g.y0);
+    for (let cy = g.y1 + 120; cy <= g.y0 - 120; cy += 20){
+      const cross = trailCrossings(cy + 30);
+      if (cross.length !== 1) continue;
+      const dx = near ? Math.abs(cross[0].x - near.x) : Infinity;
+      const clear = !near || dx > bbHalf(near) + 130 || cy + 94 < near.y - 420;
+      const angle = Math.abs(cross[0].angle);
+      creekTries.push({y0: g.y0, cy, angle: Math.round(cross[0].angle), dx: Math.round(dx), need: near ? bbHalf(near) + 130 : 0, ok: clear});
+      if (clear && (!best || angle < best.angle - 0.5 || (Math.abs(angle - best.angle) <= 0.5 && dx > best.dx))) best = {cy, g, angle, dx};
+    }
+  }
+  if (best){ creekY = best.cy; creekGap = best.g; }
+  if (creekY === null){ creekGap = gapList[0] || null; creekY = creekGap ? (creekGap.y0 + creekGap.y1) / 2 : LEN / 2; }
+  // The pond wants open meadow beside the trail where no billboard stands
+  // on it or in front of it: a card at (p.x, p.y) covers its own base and
+  // the ground behind it (smaller y) for about 420 px, across its own half
+  // width plus the pond's 252 px radius. Try each quiet stretch, both
+  // sides, and a few rows before settling for the widest stretch's centre.
+  const pondClear = (px, py) => !pts.some(p =>
+    Math.abs(p.x - px) < bbHalf(p) + 252 && py - 170 < p.y && p.y < py + 570);
+  let pondSpot = null;
+  for (const g of gapList.slice(0, 8)){
+    if (g === creekGap || !critterFree((g.y0 + g.y1) / 2, 420)) continue;
+    for (const f of [0.5, 0.35, 0.65]){
+      const py = g.y0 - g.size * f;
+      const tx = trailXAtY(py);
+      for (const side of (tx > CX ? [-1, 1] : [1, -1])){
+        const px = clamp(tx + side * 640, 260, W - 260);
+        if (Math.abs(px - tx) < 420) continue;   // clamped back onto the trail
+        if (pondClear(px, py)){ pondSpot = {x: px, y: py, g}; break; }
+      }
+      if (pondSpot) break;
+    }
+    if (pondSpot) break;
+  }
+  const pondG = pondSpot ? pondSpot.g : (gapList.find(g => g !== creekGap && critterFree((g.y0 + g.y1) / 2, 420)) || null);
 
   const creekGroup = document.createElementNS(NS, 'g');
+  // One source for the creek's quadratic chain: the painted path and the U8
+  // flow clip both read it, so they can never disagree.
+  const creekCtrlY = x => creekY + ((x / 300) % 2 ? 74 : -12);
+  // The deck sits where the trail actually crosses the water (its x at the
+  // deck's own row, creekY + 30) and turns to the trail's direction there,
+  // so a diagonal crossing gets a diagonal bridge instead of one beside the
+  // path. Positive rotate() turns clockwise with y down, so a trail that
+  // drifts right as it comes nearer (dx > 0) needs a negative angle.
+  const bridgeY = creekY + 30;
+  const bridgeCross = bridgeSpot(creekY) || trailCrossings(bridgeY)[0] || {x: trailXAtY(bridgeY), angle: 0};
+  const cx = bridgeCross.x;
+  // The deck turns toward the trail but no further than 30deg: on this
+  // trail the clear crossings are steep, and a deck turned 70deg reads as
+  // a raft lying along the river, while a trail bending onto a bridge
+  // reads fine.
+  const bridgeRot = -clamp(bridgeCross.angle, -30, 30);
+  const bridgeTransform = `translate(${cx}, ${bridgeY}) rotate(${bridgeRot.toFixed(1)})`;
   {
-    const cx = trailXAtY(creekY);
     let cd = `M -1100 ${creekY + 40}`;
     for (let x = -1000; x <= W + 1100; x += 300){
-      cd += ` Q ${x - 150} ${creekY + ((x/300) % 2 ? 74 : -12)}, ${x} ${creekY + 30}`;
+      cd += ` Q ${x - 150} ${creekCtrlY(x)}, ${x} ${creekY + 30}`;
     }
     creekGroup.innerHTML =
       `<path d="${cd}" fill="none" stroke="#7FA8B5" stroke-width="64" stroke-linecap="round" opacity=".85"/>
        <path d="${cd}" fill="none" stroke="#9DC2CC" stroke-width="40" stroke-linecap="round" opacity=".8"/>
        <path d="${cd}" class="shimmer" fill="none" stroke="#E9F3F0" stroke-width="7"
              stroke-linecap="round" stroke-dasharray="18 70" opacity=".55"/>
-       <g transform="translate(${cx}, ${creekY + 30})">
+       <g transform="${bridgeTransform}">
+         <rect x="-95" y="-58" width="190" height="116" rx="10" fill="#9A7E52"/>
+         <g stroke="#7C6540" stroke-width="5">${[-38,-14,10,34].map(o => `<line x1="${o}" y1="-58" x2="${o}" y2="58"/>`).join('')}</g>
+         <rect x="-101" y="-64" width="202" height="11" rx="5" fill="#7C6540"/>
+         <rect x="-101" y="53" width="202" height="11" rx="5" fill="#7C6540"/>
+       </g>`;
+    // U6 painted creek, built per band because each band's <svg> needs its
+    // own pattern ids. Paint order: a flat bank colour (the fallback if the
+    // bank tile never loads), the bank tile, an ink rim, a flat teal (the
+    // fallback for the water tile), the water tile, then the bridge with an
+    // ink outline. No shimmer dash: nothing inside a band SVG animates; U8
+    // supplies motion outside the band. Geometry (cd, cx) is unchanged.
+    creekGroup.paintedMarkup = (bi) =>
+      waterDefs('cw' + bi, 'cb' + bi) +
+      `<path d="${cd}" fill="none" stroke="#8F8B7A" stroke-width="112" stroke-linecap="round" stroke-opacity=".5"/>
+       <path d="${cd}" fill="none" stroke="url(#cb${bi})" stroke-width="112" stroke-linecap="round"/>
+       <path d="${cd}" fill="none" stroke="${INK_COLOR}" stroke-width="72" stroke-linecap="round" stroke-opacity=".8"/>
+       <path d="${cd}" fill="none" stroke="#2E7A80" stroke-width="64" stroke-linecap="round"/>
+       <path d="${cd}" fill="none" stroke="url(#cw${bi})" stroke-width="64" stroke-linecap="round"/>
+       <g transform="${bridgeTransform}" stroke="${INK_COLOR}" stroke-width="3">
          <rect x="-95" y="-58" width="190" height="116" rx="10" fill="#9A7E52"/>
          <g stroke="#7C6540" stroke-width="5">${[-38,-14,10,34].map(o => `<line x1="${o}" y1="-58" x2="${o}" y2="58"/>`).join('')}</g>
          <rect x="-101" y="-64" width="202" height="11" rx="5" fill="#7C6540"/>
          <rect x="-101" y="53" width="202" height="11" rx="5" fill="#7C6540"/>
        </g>`;
   }
+  // Two 256 px userSpaceOnUse patterns (water, bank) with the tile image
+  // attached from the start: one decoded bitmap each, shared by every band.
+  function waterDefs(waterId, bankId){
+    const pat = (id, url) => `<pattern id="${id}" patternUnits="userSpaceOnUse" x="0" y="0" width="${WATER_TILE}" height="${WATER_TILE}">` +
+      `<image width="${WATER_TILE}" height="${WATER_TILE}" href="${url}"/></pattern>`;
+    return `<defs>${pat(waterId, WATER_URL)}${pat(bankId, BANK_URL)}</defs>`;
+  }
 
   let pondHTML = '', pondPos = null;
   if (pondG){
-    const py = (pondG.y0 + pondG.y1) / 2;
-    const px = clamp(trailXAtY(py) + (trailXAtY(py) > CX ? -640 : 640), 260, W - 260);
+    const py = pondSpot ? pondSpot.y : (pondG.y0 + pondG.y1) / 2;
+    const px = pondSpot ? pondSpot.x : clamp(trailXAtY(py) + (trailXAtY(py) > CX ? -640 : 640), 260, W - 260);
     pondPos = {x: px, y: py};
     pondHTML =
       `<g transform="translate(${px},${py})">
@@ -469,8 +627,24 @@
         <ellipse cx="90" cy="-40" rx="16" ry="9" fill="#6E8F4E"/>
       </g>`;
   }
+  // U6 painted pond: the same three layers on the ellipse (bank tile, ink
+  // rim, water tile), each over its flat fallback colour; lily pads stay.
+  const pondPainted = (bi) => !pondPos ? '' :
+    waterDefs('pw' + bi, 'pb' + bi) +
+    `<g transform="translate(${pondPos.x},${pondPos.y})">
+      <ellipse cx="0" cy="0" rx="252" ry="150" fill="#8F8B7A" fill-opacity=".5"/>
+      <ellipse cx="0" cy="0" rx="252" ry="150" fill="url(#pb${bi})"/>
+      <ellipse cx="0" cy="0" rx="234" ry="134" fill="${INK_COLOR}" fill-opacity=".8"/>
+      <ellipse cx="0" cy="0" rx="228" ry="128" fill="#2E7A80"/>
+      <ellipse cx="0" cy="0" rx="228" ry="128" fill="url(#pw${bi})"/>
+      <ellipse cx="-60" cy="-24" rx="26" ry="14" fill="#6E8F4E" stroke="${INK_COLOR}" stroke-width="2"/>
+      <ellipse cx="48" cy="30" rx="20" ry="11" fill="#7C9E58" stroke="${INK_COLOR}" stroke-width="2"/>
+      <ellipse cx="90" cy="-40" rx="16" ry="9" fill="#6E8F4E" stroke="${INK_COLOR}" stroke-width="2"/>
+    </g>`;
+  // Debug hook for the smoke's U6 scenario: where the water is.
+  window.__journeyWater = { creekY, bridgeX: cx, bridgeRot, pond: pondPos, painted: PAINT_WATER, tries: creekTries };
 
-  bands.forEach(b => {
+  bands.forEach((b, bandIdx) => {
     if (GROUND_FLAT){
       // ?ground=flat (or an empty manifest) is a faithful rollback to
       // today's look: the dirt pattern never gets an href, so painting the
@@ -480,6 +654,7 @@
       bandPath.setAttribute('d', dStr); bandPath.setAttribute('fill', 'none');
       bandPath.setAttribute('stroke', '#5C5137'); bandPath.setAttribute('stroke-width', '120');
       bandPath.setAttribute('stroke-linecap', 'round'); bandPath.setAttribute('opacity', '0.12');
+      bandPath.setAttribute('clip-path', `url(#${b.clipId})`);
       b.svg.appendChild(bandPath);
     } else {
       // Fallback stroke, painted first (i.e. under everything else in this
@@ -493,6 +668,7 @@
       fallbackPath.setAttribute('d', dStr); fallbackPath.setAttribute('fill', 'none');
       fallbackPath.setAttribute('stroke', '#5C5137'); fallbackPath.setAttribute('stroke-width', '120');
       fallbackPath.setAttribute('stroke-linecap', 'round'); fallbackPath.setAttribute('stroke-opacity', '0.12');
+      fallbackPath.setAttribute('clip-path', `url(#${b.clipId})`);
       b.svg.appendChild(fallbackPath);
       // Painted dirt trail: an ink edge line drawn first, slightly
       // wider than the trail stroke so it peeks out as an outline, then the
@@ -501,21 +677,25 @@
       inkEdge.setAttribute('d', dStr); inkEdge.setAttribute('fill', 'none');
       inkEdge.setAttribute('stroke', INK_COLOR); inkEdge.setAttribute('stroke-width', '126');
       inkEdge.setAttribute('stroke-linecap', 'round'); inkEdge.setAttribute('stroke-opacity', '.35');
+      inkEdge.setAttribute('clip-path', `url(#${b.clipId})`);
       b.svg.appendChild(inkEdge);
       const dirtPath = document.createElementNS(NS, 'path');
       dirtPath.setAttribute('d', dStr); dirtPath.setAttribute('fill', 'none');
       dirtPath.setAttribute('stroke', GROUND_DIRT ? b.dirtFill : '#8B8A7E'); dirtPath.setAttribute('stroke-width', '120');
       dirtPath.setAttribute('stroke-linecap', 'round');
+      dirtPath.setAttribute('clip-path', `url(#${b.clipId})`);
       b.svg.appendChild(dirtPath);
     }
     if (creekY + 160 > b.y0 && creekY - 160 < b.y0 + BANDH){
       const g = document.createElementNS(NS, 'g');
-      g.innerHTML = creekGroup.innerHTML;
+      g.setAttribute('class', 'creek');
+      g.innerHTML = PAINT_WATER ? creekGroup.paintedMarkup(bandIdx) : creekGroup.innerHTML;
       b.svg.appendChild(g);
     }
     if (pondHTML && pondPos && pondPos.y + 170 > b.y0 && pondPos.y - 170 < b.y0 + BANDH){
       const g = document.createElementNS(NS, 'g');
-      g.innerHTML = pondHTML;
+      g.setAttribute('class', 'pond');
+      g.innerHTML = PAINT_WATER ? pondPainted(bandIdx) : pondHTML;
       b.svg.appendChild(g);
     }
     const dotsPath = document.createElementNS(NS, 'path');
@@ -525,6 +705,7 @@
     // stroke-opacity, not opacity: element opacity allocates an offscreen
     // buffer per band on iOS (see the snow strips above for the same rule).
     if (!GROUND_FLAT) dotsPath.setAttribute('stroke-opacity', '.45');
+    dotsPath.setAttribute('clip-path', `url(#${b.clipId})`);
     b.svg.appendChild(dotsPath);
     b.detail = document.createElementNS(NS, 'g');
     b.svg.appendChild(b.detail);
@@ -1425,6 +1606,107 @@
     if (document.hidden) audio.ctx.suspend();
     else if (soundBtn.classList.contains('playing')) audio.ctx.resume();
   });
+
+  /* ---------- U8: grass sway and creek flow, desktop only ----------
+     KTD5: motion is a few small compositor-only elements, created only when
+     the tier is not lite and the user has not asked for reduced motion (the
+     CSS reduced-motion block also silences them, belt and braces), never
+     inside a band SVG, never animating background-position. Sway clumps are
+     billboard props (a .prop that counter-tilts like every other prop)
+     whose inner element rotates a few degrees about its base; flow is one
+     flat element per water body lying in the map plane, clipped to the
+     water shape, whose inner strip of highlight tiles translates along the
+     water. Both are registered in props so the existing cull hides them
+     off camera. Placed after every other rnd() consumer so the seeded
+     layout is identical with motion on or off. */
+  const GRASS = ART['grass-clumps.webp'];
+  const GRASS_URL = assetUrl('grass-clumps.webp'), HIGHLIGHT_URL = assetUrl('water-highlight.webp');
+  const GRASS_CELLS = ((GRASS && GRASS.cells) || []);
+  const MOTION = !LITE && !reduced && !GROUND_FLAT && GROUND_MOTION && !!GRASS_URL && !!HIGHLIGHT_URL && GRASS_CELLS.length >= 4;
+  const swayPlaced = [];
+  // A clump's own keep-out: a 128 x 64 billboard only has to stay out from
+  // under a camp's 270 px frame and its post, not the 450 x 460 px zone the
+  // trees need (their cluster bucket can anchor nearer than the event). A
+  // clump farther away than the card is hidden behind it, so the far side
+  // is short; the near side covers the card's projected foot.
+  const grassClear = (x, y) => pts.some(p =>
+    Math.abs(p.x - x) < 200 && (y < p.y ? p.y - y < 160 : y - p.y < 120));
+  if (MOTION){
+    const gw = GRASS.size[0], gh = GRASS.size[1];
+    const clumpMarkup = () => {
+      const n = 3 + Math.floor(rnd() * 3);   // 3..5 sprites
+      let inner = '';
+      for (let k = 0; k < n; k++){
+        const c = GRASS_CELLS[Math.floor(rnd() * GRASS_CELLS.length)];
+        const h = 40 + rnd() * 24, w = h * c.w / c.h;
+        const x = 8 + k * (104 / n) + rnd() * 10;
+        inner += `<svg x="${x.toFixed(0)}" y="${(64 - h).toFixed(0)}" width="${w.toFixed(0)}" height="${h.toFixed(0)}" viewBox="${c.x} ${c.y} ${c.w} ${c.h}">` +
+          `<image width="${gw}" height="${gh}" href="${GRASS_URL}"/></svg>`;
+      }
+      return `<div class="sway-in" style="--dur:${(2.4 + rnd() * 1.6).toFixed(2)}s; --delay:-${(rnd() * 3).toFixed(2)}s; --amp:${(2.6 + rnd() * 2).toFixed(1)}deg;">` +
+        `<svg width="128" height="64" viewBox="0 0 128 64">${inner}</svg></div>`;
+    };
+    bands.forEach(b => {
+      const want = 2 + Math.floor(rnd() * 2);   // 2..3 clumps per band
+      // Most trail-side spots sit inside a camp's keep-out (the camps line
+      // the trail), so this needs many more tries than the tree loop, and
+      // the offset range reaches past the keep-out's 450 px half-width so
+      // the meadow beside a camp can still sway.
+      let placed = 0, guard = 0;
+      while (placed < want && guard++ < 48){
+        const yy = b.y0 + 80 + rnd() * (BANDH - 160);
+        if (yy < 120 || yy > LEN - 120) continue;
+        const tx = trailXAtY(yy);
+        const x = tx + (rnd() > 0.5 ? 1 : -1) * (95 + rnd() * 300);
+        if (grassClear(x, yy)) continue;
+        if (Math.abs(yy - creekY) < 150) continue;
+        if (pondPos && Math.abs(pondPos.x - x) < 320 && Math.abs(pondPos.y - yy) < 230) continue;
+        const el = prop(x, yy, clumpMarkup(), {cls: 'sway'});
+        swayPlaced.push({x, y: yy, el});
+        placed++;
+      }
+    });
+    // Flow: the creek's water shape as a polygon (the same quadratic chain
+    // as the creek path, offset +-30 px, inside the 64 px water stroke).
+    const flowBody = (left, top, width, height, clip, dur = '9s') => {
+      const el = document.createElement('div');
+      el.className = 'prop flow';
+      el.style.cssText = `left:${left}px; top:${top}px; width:${width}px; height:${height}px; clip-path:${clip}; --flow-dur:${dur};`;
+      el.innerHTML = `<div class="flow-in" style="background-image:url('${HIGHLIGHT_URL}')"></div>`;
+      map.appendChild(el);
+      return el;
+    };
+    {
+      const top = creekY - 60, left = -1100, width = W + 2200, height = 140;
+      const up = [], down = [];
+      // The bridge deck (cx +- 101 world px) is cut out of the clip by
+      // collapsing the band to zero height across it, so highlights never
+      // paint over the deck or the paw prints crossing it.
+      const bx = cx;
+      let px = -1100, py = creekY + 40;
+      for (let x = -1000; x <= W + 1100; x += 300){
+        const cx = x - 150, cy = creekCtrlY(x), ex = x, ey = creekY + 30;
+        for (let t = 0.1; t <= 1.0001; t += 0.1){
+          const mx = (1 - t) * (1 - t) * px + 2 * (1 - t) * t * cx + t * t * ex;
+          const my = (1 - t) * (1 - t) * py + 2 * (1 - t) * t * cy + t * t * ey;
+          // the trail crosses the creek at an angle and is 120 px wide plus
+          // ink edges, so the cut follows the trail, not just the deck
+          const onBridge = Math.abs(mx - bx) < 101 || trailCrossings(my).some(c => Math.abs(mx - c.x) < 150);
+          up.push(`${(mx - left).toFixed(0)}px ${(my + (onBridge ? 30 : -30) - top).toFixed(0)}px`);
+          down.unshift(`${(mx - left).toFixed(0)}px ${(my + 30 - top).toFixed(0)}px`);
+        }
+        px = ex; py = ey;
+      }
+      const el = flowBody(left, top, width, height, `polygon(${up.concat(down).join(', ')})`);
+      props.push({el, y: creekY, yMin: creekY - 60, yMax: creekY + 60});
+    }
+    if (pondPos){
+      // Still water: the pond's highlights crawl at a fifth of the creek's pace.
+      const el = flowBody(pondPos.x - 230, pondPos.y - 130, 460, 260, 'ellipse(226px 126px at 50% 50%)', '45s');
+      props.push({el, y: pondPos.y, yMin: pondPos.y - 130, yMax: pondPos.y + 130});
+    }
+  }
+  window.__journeyMotion = { on: MOTION, sway: swayPlaced.map(s => ({x: s.x, y: s.y})) };
 
   /* ---------- camera ---------- */
   const intro = document.getElementById('intro');

@@ -27,7 +27,21 @@ body.t-dusk .ridge{filter:brightness(.85) sepia(.25);}
 .map{position:absolute; left:0; top:0; transform-style:preserve-3d; will-change:transform;}
 .map > svg{position:absolute; left:0; top:0; overflow:visible; display:block;}
 
-/* water highlights are static: animating them repaints the whole ground SVG */
+/* U8 motion (desktop only; journey.js never creates these on the lite
+   tier or under reduced motion). Sway: the inner element rotates about its
+   base, transform only. Flow: a flat element in the map plane clipped to
+   the water shape; its inner strip of highlight tiles translates by one
+   tile width per loop, so it never animates background-position. */
+.prop.sway{transform:translate(-50%,-100%) rotateX(calc(var(--tilt) * -1));}
+.sway-in{transform-origin:50% 100%; will-change:transform; animation:sway var(--dur,3s) ease-in-out var(--delay,0s) infinite alternate;}
+.sway-in svg{display:block; overflow:visible;}
+.sway-in svg svg{overflow:hidden;}
+@keyframes sway{from{transform:rotate(calc(var(--amp,2deg) * -1))}to{transform:rotate(var(--amp,2deg))}}
+.prop.flow{transform:none; overflow:hidden;}
+.flow-in{position:absolute; left:0; top:0; height:100%; width:calc(100% + 512px); background-repeat:repeat; background-size:512px 64px;
+  will-change:transform; animation:flow var(--flow-dur,9s) linear infinite;}
+@keyframes flow{from{transform:translateX(-512px)}to{transform:translateX(0)}}
+/* water highlights inside the band SVGs are static: animating them repaints the whole ground SVG */
 
 /* "you are here" paw prints, flat on the trail */
 .pawmark{position:absolute; left:0; top:0; width:0; height:0; will-change:transform; pointer-events:none;}
@@ -290,6 +304,6 @@ body.t-night #stars{opacity:1;}
 }
 @media (prefers-reduced-motion: reduce){
   .intro .hint, .cloudshadow, .flutter, .flutter svg, .home-smoke, .wpart,
-  .firefly, .bird svg{animation:none;}
+  .firefly, .bird svg, .sway-in, .flow-in{animation:none;}
   .bb,.bb-camp .frame,.deer g,.fanpop,.fanmore,#fanOverlay,.endnote,.lore-chip{transition:none;}
 }
