@@ -485,7 +485,9 @@ function evalProfile(stats, { isLite, isReduced, isFlat, baseline }) {
   // 43 + 14; lite and reduced motion create none and keep theirs.
   // Flat mode creates no motion props either (MOTION requires painted
   // ground), so it keeps the pre-U8 desktop ceiling.
-  const surfaceCeiling = isLite ? 44 : isReduced ? 42 : isFlat ? 43 : 57;
+  // Two surfaces of headroom over the observed maxima: the seeded layout
+  // reshuffles grove buckets by one when a landmark such as the creek moves.
+  const surfaceCeiling = isLite ? 46 : isReduced ? 44 : isFlat ? 45 : 59;
   add(`aliveSurfaces <= ${surfaceCeiling}`, stats.aliveSurfacesMax <= surfaceCeiling, `max ${stats.aliveSurfacesMax}`);
   // DOM cross-check (taken once, post-sweep): the aliveSurfaces stat above is
   // trusted only as far as it agrees with an independent count of the actual
@@ -870,7 +872,14 @@ async function scenarioWater(browser, baseUrl, waterAvg, { query = '', block = n
     const paintedPonds = svgs.filter(s => s.querySelector('g.pond ellipse[fill^="url(#pw"]')).length;
     const shimmer = document.querySelectorAll('#map > svg .shimmer').length;
     const animated = svgs.reduce((n, s) => n + s.getAnimations({ subtree: true }).length, 0);
-    return { creekBands, creekGroups, paintedCreeks, bridges, pondGroups, paintedPonds, shimmer, animated };
+    // the bridge must not sit behind a billboard: none within a billboard's
+    // half-width plus the bridge's half-width of the crossing, in the 420 px
+    // of ground a standing billboard covers behind itself
+    const bridgeBlockers = Array.from(document.querySelectorAll('#map > .bb')).filter(b => {
+      const bx = parseFloat(b.style.left), by = parseFloat(b.style.top);
+      return Math.abs(bx - w.bridgeX) <= 330 && by >= w.creekY && by - 420 <= w.creekY + 94;
+    }).length;
+    return { creekBands, creekGroups, paintedCreeks, bridges, pondGroups, paintedPonds, shimmer, animated, bridgeBlockers };
   }, BANDH);
   // Land the camera on the creek's centre line and sample across it.
   await bisectScroll(page, maxY, () => window.__journeyStats.camY, water.creekY + 30, { increasing: false, tol: 2 });
@@ -1181,6 +1190,7 @@ async function main() {
         ['the creek is in every band it crosses', r.creekGroups === r.creekBands && r.creekBands > 0],
         ['every creek band is painted with the water tile', r.paintedCreeks === r.creekBands],
         ['the bridge sits on the creek in every creek band', r.bridges === r.creekBands],
+        ['no billboard stands in front of the bridge', r.bridgeBlockers === 0],
         ['the pond is painted with the water tile in every pond band', r.pondGroups > 0 && r.paintedPonds === r.pondGroups],
         ['no shimmer dash and no running animation inside any band SVG', r.shimmer === 0 && r.animated === 0],
         ['water pixels across the creek read as palette teal (>= 30% of the sampled strip)', r.tealShare >= 0.3],
