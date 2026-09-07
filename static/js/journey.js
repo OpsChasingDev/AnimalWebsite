@@ -247,6 +247,21 @@
     const bsvg = document.createElementNS(NS, 'svg');
     bsvg.setAttribute('width', W + 2200); bsvg.setAttribute('height', BANDH + over);
     bsvg.setAttribute('viewBox', `-1100 ${y0 - over} ${W + 2200} ${BANDH + over}`);
+    // Every band strokes the whole trail path, and band svgs keep
+    // overflow:visible, so without a clip the nearer band's trail paints
+    // over the previous (farther) band's creek and bridge. A rect clipPath
+    // is a scissor (no buffer, see the GPU rules above).
+    const bandClip = document.createElementNS(NS, 'clipPath');
+    bandClip.id = 'bandclip' + bi;
+    const bandClipRect = document.createElementNS(NS, 'rect');
+    // The clip keeps this band's trail out of FARTHER bands only (it starts
+    // at this band's top and runs to the world's end). Nearer bands paint
+    // later and overpaint it anyway, so the seam paint structure is exactly
+    // what it was before the clip existed; a clip that ended at the band's
+    // bottom instead left a hairline where two clip edges met.
+    bandClipRect.setAttribute('x', -1100); bandClipRect.setAttribute('y', y0 - over);
+    bandClipRect.setAttribute('width', W + 2200); bandClipRect.setAttribute('height', NB * BANDH + 8000);
+    bandClip.appendChild(bandClipRect);
     bsvg.style.left = '-1100px'; bsvg.style.top = (y0 - over) + 'px';
     const bdefs = document.createElementNS(NS, 'defs');
     const bgrad = document.createElementNS(NS, 'linearGradient');
@@ -262,6 +277,7 @@
     });
     bdefs.appendChild(bgrad);
     bsvg.appendChild(bdefs);
+    bdefs.appendChild(bandClip);
     const bg = document.createElementNS(NS, 'rect');
     bg.setAttribute('x', -1100); bg.setAttribute('y', y0 - over);
     bg.setAttribute('width', W + 2200); bg.setAttribute('height', BANDH + over);
@@ -367,7 +383,7 @@
     map.appendChild(bsvg);
 
     const band = {
-      svg: bsvg, y0, overlayFile, inkImgs, dirtImg, snowImgs,
+      svg: bsvg, y0, overlayFile, inkImgs, dirtImg, snowImgs, clipId: 'bandclip' + bi,
       overlayUrl: assetUrl(overlayFile), dirtFill: `url(#dirt${bi})`,
       attached: false, attachedAt: 0, overlayState: 'loading', dirtState: 'loading', detailImgs: [],
     };
@@ -450,9 +466,14 @@
   // event (or fully beyond its shadow), so the bridge stays clickable-clear.
   const bridgeClear = (cy, near) => !near ||
     Math.abs(trailXAtY(cy) - near.x) > 330 || cy + 94 < near.y - 420;
+  // The squirrel's tree and the deer are placed later at fixed fractions of
+  // the trail; neither belongs in the water, so their stretches are skipped.
+  const critterYs = [atDist(PLEN * 0.34).y, atDist(PLEN * 0.56).y];
+  const critterFree = (y, r) => critterYs.every(cy => Math.abs(cy - y) > r);
   let creekY = null, creekGap = null;
   for (const g of gapList.slice(0, 6)){
     if (g.size < 300) continue;
+    if (!critterFree((g.y0 + g.y1) / 2, 360)) continue;
     const near = pts.find(p => p.y === g.y0);
     for (const f of [0.5, 0.35, 0.65, 0.2, 0.8]){
       const cy = g.y0 - g.size * f;
@@ -462,7 +483,7 @@
     if (creekY !== null) break;
   }
   if (creekY === null){ creekGap = gapList[0] || null; creekY = creekGap ? (creekGap.y0 + creekGap.y1) / 2 : LEN / 2; }
-  const pondG = gapList.find(g => g !== creekGap) || null;
+  const pondG = gapList.find(g => g !== creekGap && critterFree((g.y0 + g.y1) / 2, 420)) || null;
 
   const creekGroup = document.createElementNS(NS, 'g');
   // One source for the creek's quadratic chain: the painted path and the U8
@@ -556,6 +577,7 @@
       bandPath.setAttribute('d', dStr); bandPath.setAttribute('fill', 'none');
       bandPath.setAttribute('stroke', '#5C5137'); bandPath.setAttribute('stroke-width', '120');
       bandPath.setAttribute('stroke-linecap', 'round'); bandPath.setAttribute('opacity', '0.12');
+      bandPath.setAttribute('clip-path', `url(#${b.clipId})`);
       b.svg.appendChild(bandPath);
     } else {
       // Fallback stroke, painted first (i.e. under everything else in this
@@ -569,6 +591,7 @@
       fallbackPath.setAttribute('d', dStr); fallbackPath.setAttribute('fill', 'none');
       fallbackPath.setAttribute('stroke', '#5C5137'); fallbackPath.setAttribute('stroke-width', '120');
       fallbackPath.setAttribute('stroke-linecap', 'round'); fallbackPath.setAttribute('stroke-opacity', '0.12');
+      fallbackPath.setAttribute('clip-path', `url(#${b.clipId})`);
       b.svg.appendChild(fallbackPath);
       // Painted dirt trail: an ink edge line drawn first, slightly
       // wider than the trail stroke so it peeks out as an outline, then the
@@ -577,11 +600,13 @@
       inkEdge.setAttribute('d', dStr); inkEdge.setAttribute('fill', 'none');
       inkEdge.setAttribute('stroke', INK_COLOR); inkEdge.setAttribute('stroke-width', '126');
       inkEdge.setAttribute('stroke-linecap', 'round'); inkEdge.setAttribute('stroke-opacity', '.35');
+      inkEdge.setAttribute('clip-path', `url(#${b.clipId})`);
       b.svg.appendChild(inkEdge);
       const dirtPath = document.createElementNS(NS, 'path');
       dirtPath.setAttribute('d', dStr); dirtPath.setAttribute('fill', 'none');
       dirtPath.setAttribute('stroke', GROUND_DIRT ? b.dirtFill : '#8B8A7E'); dirtPath.setAttribute('stroke-width', '120');
       dirtPath.setAttribute('stroke-linecap', 'round');
+      dirtPath.setAttribute('clip-path', `url(#${b.clipId})`);
       b.svg.appendChild(dirtPath);
     }
     if (creekY + 160 > b.y0 && creekY - 160 < b.y0 + BANDH){
@@ -603,6 +628,7 @@
     // stroke-opacity, not opacity: element opacity allocates an offscreen
     // buffer per band on iOS (see the snow strips above for the same rule).
     if (!GROUND_FLAT) dotsPath.setAttribute('stroke-opacity', '.45');
+    dotsPath.setAttribute('clip-path', `url(#${b.clipId})`);
     b.svg.appendChild(dotsPath);
     b.detail = document.createElementNS(NS, 'g');
     b.svg.appendChild(b.detail);
@@ -1586,7 +1612,9 @@
         for (let t = 0.1; t <= 1.0001; t += 0.1){
           const mx = (1 - t) * (1 - t) * px + 2 * (1 - t) * t * cx + t * t * ex;
           const my = (1 - t) * (1 - t) * py + 2 * (1 - t) * t * cy + t * t * ey;
-          const onBridge = Math.abs(mx - bx) < 101;
+          // the trail crosses the creek at an angle and is 120 px wide plus
+          // ink edges, so the cut follows the trail, not just the deck
+          const onBridge = Math.abs(mx - bx) < 101 || Math.abs(mx - trailXAtY(my)) < 150;
           up.push(`${(mx - left).toFixed(0)}px ${(my + (onBridge ? 30 : -30) - top).toFixed(0)}px`);
           down.unshift(`${(mx - left).toFixed(0)}px ${(my + 30 - top).toFixed(0)}px`);
         }
