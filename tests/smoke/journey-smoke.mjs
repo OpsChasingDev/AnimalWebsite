@@ -360,9 +360,7 @@ async function runProfile(browser, baseUrl, { name, contextOptions, checkNoAnim,
   });
 
   await page.addInitScript(installRecorder);
-  // SMOKE_EXTRA appends a query to every profile (e.g. SMOKE_EXTRA='&backdrop=off')
-  // so a regression can be attributed to one lever without editing this file.
-  await page.goto(`${baseUrl}/?t=day${extraQuery}${process.env.SMOKE_EXTRA || ''}`, { waitUntil: 'load', timeout: CONSOLE_TIMEOUT_MS });
+  await page.goto(`${baseUrl}/?t=day${extraQuery}`, { waitUntil: 'load', timeout: CONSOLE_TIMEOUT_MS });
 
   // Static per-build value (E9/U4): no vector scree/flower/log path should
   // remain once the atlas cells are wired up. undefined in flat mode, where
@@ -462,7 +460,6 @@ async function runProfile(browser, baseUrl, { name, contextOptions, checkNoAnim,
     updateMsAvg: updateTimes.length ? updateTimes.reduce((a, b) => a + b, 0) / updateTimes.length : 0,
     updateMsWorst: updateTimes.length ? Math.max(...updateTimes) : 0,
     longTasks: sweepLongTasks.length,
-    longTaskMaxMs: sweepLongTasks.reduce((m, t) => Math.max(m, t.dur), 0),
     loadLongTasks: loadLongTasks.length,
     loadLongTaskDurations: loadLongTasks.map(t => Math.round(t.dur)),
     attachViolation,
@@ -498,18 +495,8 @@ function evalProfile(stats, { isLite, isReduced, isFlat, baseline }) {
   add('attachedOverlays <= 6', stats.attachedOverlaysMax <= 6, `max ${stats.attachedOverlaysMax}`);
   if (isFlat) add('attachedOverlays == 0 (flat)', stats.attachedOverlaysMax === 0, `max ${stats.attachedOverlaysMax}`);
   add('art bytes < 1.5MB', stats.artBytes < 1572864, `${stats.artBytes} bytes`);
-  // Reduced motion teleports the camera instead of gliding, so the first
-  // paint after a jump rasterizes every band that just became visible in one
-  // frame. Since U7 lowered the camera (?view=16) the far bands under the
-  // haze are on screen too, and that single teleport paint measures 50-55 ms
-  // (attributed 2026-09-07: view=60 or the painted art off brings it back to
-  // zero; the backdrop and lookahead do not matter). A user with reduced
-  // motion sees nothing move, so one sub-60 ms task per sweep is allowed
-  // there; desktop and lite glide and keep the strict zero.
-  const teleportPaint = isReduced && stats.longTasks === 1 && stats.longTaskMaxMs < 60;
-  add(isReduced ? 'long tasks (>=50ms) <= 1 teleport paint under 60ms (reduced)' : 'long tasks (>=50ms) == 0',
-    stats.longTasks === 0 || teleportPaint, `${stats.longTasks}`);
-  add('no long task within 100ms of an attach', !stats.attachViolation || teleportPaint,
+  add('long tasks (>=50ms) == 0', stats.longTasks === 0, `${stats.longTasks}`);
+  add('no long task within 100ms of an attach', !stats.attachViolation,
     stats.attachViolation ? JSON.stringify(stats.attachViolation) : 'none');
   if (!isFlat) {
     add('no vector scree/flower/log path (__journeyDetailVectorCount == 0)',
@@ -530,7 +517,7 @@ function evalProfile(stats, { isLite, isReduced, isFlat, baseline }) {
       add(`${label} <= baseline (${base})`, curr <= base, `${curr}`);
     noRegress(stats.aliveBandsMax, baseline.aliveBandsMax, 'aliveBands');
     noRegress(stats.aliveSurfacesMax, baseline.aliveSurfacesMax, 'aliveSurfaces');
-    noRegress(stats.longTasks, isReduced ? Math.max(baseline.longTasks, 1) : baseline.longTasks, 'longTasks');
+    noRegress(stats.longTasks, baseline.longTasks, 'longTasks');
     // Overlays add real per-frame work at attach moments, and the U3
     // baseline numbers are sub-millisecond (a flat 25% of ~0.3ms is a
     // fraction of a millisecond, well inside measurement noise), so the
@@ -636,9 +623,7 @@ async function scenarioBlockedOverlay(browser, baseUrl) {
   }
   const pixels = samplePixels(shot, points);
   const allSame = pixels.every(p => p[0] === pixels[0][0] && p[1] === pixels[0][1] && p[2] === pixels[0][2]);
-  // "blank" means the paper/white background showing through, not the
-  // near-white of a winter snow slab (about 236-240), so the bar is 254+.
-  const anyBlank = pixels.some(p => p[0] >= 254 && p[1] >= 254 && p[2] >= 254);
+  const anyBlank = pixels.some(p => p[0] > 250 && p[1] > 250 && p[2] > 250);
 
   return {
     missingOverlays: stats.missingOverlays,
@@ -730,9 +715,7 @@ async function scenarioBlockedDirtAtlas(browser, baseUrl) {
   }
   const pixels = samplePixels(shot, points);
   const allSame = pixels.every(p => p[0] === pixels[0][0] && p[1] === pixels[0][1] && p[2] === pixels[0][2]);
-  // "blank" means the paper/white background showing through, not the
-  // near-white of a winter snow slab (about 236-240), so the bar is 254+.
-  const anyBlank = pixels.some(p => p[0] >= 254 && p[1] >= 254 && p[2] >= 254);
+  const anyBlank = pixels.some(p => p[0] > 250 && p[1] > 250 && p[2] > 250);
 
   return {
     missingOverlays: stats.missingOverlays,
@@ -785,113 +768,13 @@ async function scenarioGroveSprites(browser, baseUrl) {
   return { painted, vector };
 }
 
-/* ---------- U7 scenario: painted backdrop ---------- */
-// The plan's U7 test scenarios: the backdrop sits behind the world (DOM
-// order, so it can never paint over a billboard or the trail), all three
-// images load, it moves less than the ground between two camera positions,
-// its vertical drift is monotonic and bounded by the spare height, night
-// dims it and day does not, ?backdrop=off adds nothing inside #map, a
-// blocked image hides itself with no page error, and there is no gap at
-// the top of the viewport across the camera range.
-async function scenarioBackdrop(browser, baseUrl) {
-  const open = async (query, route) => {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-    if (route) await context.route(route, r => r.abort());
-    const page = await context.newPage();
-    const errors = [];
-    page.on('pageerror', e => errors.push(String(e)));
-    await page.goto(`${baseUrl}/?t=day${query}`, { waitUntil: 'load' });
-    await page.waitForTimeout(800);
-    return { context, page, errors };
-  };
-  const readState = (page) => page.evaluate(() => {
-    const ridge = document.getElementById('ridge'), inner = document.getElementById('ridgeInner');
-    const imgs = Array.from(document.querySelectorAll('#ridgeInner img.bd'));
-    const ty = el => { const m = new DOMMatrixReadOnly(getComputedStyle(el).transform); return m.m42; };
-    // .ridge is pointer-events:none, so elementFromPoint skips it; test the
-    // geometry instead: a visible backdrop image, or the world, must cover
-    // the point (x, 2) at the top of the viewport.
-    const cols = [0.1, 0.5, 0.9].map(f => Math.round(innerWidth * f));
-    const rects = imgs.filter(i => getComputedStyle(i).display !== 'none').map(i => i.getBoundingClientRect());
-    const topHit = cols.map(x => {
-      if (rects.some(r => x >= r.left && x <= r.right && 2 >= r.top && 2 <= r.bottom)) return 'bd';
-      const el = document.elementFromPoint(x, 2);
-      return el && document.getElementById('map').contains(el) ? 'map' : (el ? (el.id || el.tagName) : 'none');
-    });
-    return {
-      ridgeBeforeZoom: !!(ridge.compareDocumentPosition(document.getElementById('zoom')) & Node.DOCUMENT_POSITION_FOLLOWING),
-      loaded: imgs.filter(i => getComputedStyle(i).display !== 'none' && i.complete && i.naturalWidth > 0).length,
-      hidden: imgs.filter(i => getComputedStyle(i).display === 'none').map(i => i.dataset.file),
-      mistTop: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mist-top')) || 0,
-      mistH: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mist-h')) || 0,
-      innerTy: ty(inner), mapTy: ty(document.getElementById('map')),
-      spare: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bd-spare')) || 0,
-      skyH: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sky-h')) || 0,
-      ridgeFilter: getComputedStyle(ridge).filter,
-      mapChildren: document.getElementById('map').children.length,
-      topHit,
-    };
-  });
-  const scrollTo = async (page, f) => { const maxY = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight); await page.evaluate(y => window.scrollTo(0, y), Math.round(maxY * f)); await settle(page); await page.waitForTimeout(400); };
-
-  const base = await open('');
-  const s0 = await readState(base.page);
-  await scrollTo(base.page, 0.3); const s1 = await readState(base.page);
-  await scrollTo(base.page, 0.6); const s2 = await readState(base.page);
-  await scrollTo(base.page, 1.0); const s3 = await readState(base.page);
-  await base.context.close();
-
-  const off = await open('&backdrop=off');
-  const sOff = await readState(off.page);
-  await off.context.close();
-
-  // Night is toggled on the loaded page (the body class drives the .ridge
-  // filter) rather than via ?t=, so the same fixture load serves both reads.
-  const night = await open('');
-  await night.page.evaluate(() => { document.body.classList.remove('t-day'); document.body.classList.add('t-night'); });
-  const sNight = await readState(night.page);
-  await night.context.close();
-
-  const blocked = await open('', '**/backdrop-centre-range.webp*');
-  await blocked.page.waitForTimeout(800);
-  const sBlocked = await readState(blocked.page);
-  const blockedErrors = blocked.errors.slice();
-  await blocked.context.close();
-
-  const topGap = {}, mistInZone = {};
-  for (const view of [10, 16, 25, 40, 60, 78]) {
-    const v = await open(`&view=${view}`);
-    await scrollTo(v.page, 0.5);
-    const st = await readState(v.page);
-    topGap[view] = st.topHit;
-    // the haze never extends below the sky zone by more than its overlap
-    mistInZone[view] = st.mistTop + st.mistH <= st.skyH + 22;   // 20 px overlap plus rounding
-    await v.context.close();
-  }
-  // the phone tier (zoom scale 0.52, where the depth term differs) at the default view
-  const phone = await browser.newContext({ ...devices['iPhone 13'] });
-  const phonePage = await phone.newPage();
-  await phonePage.goto(`${baseUrl}/?t=day`, { waitUntil: 'load' });
-  await phonePage.waitForTimeout(800);
-  await scrollTo(phonePage, 0.5);
-  const sPhone = await readState(phonePage);
-  await phone.close();
-  topGap.phone = sPhone.topHit;
-  mistInZone.phone = sPhone.mistTop + sPhone.mistH <= sPhone.skyH + 22;
-  const groundDelta = Math.abs(s2.mapTy - s1.mapTy), ridgeDelta = Math.abs(s2.innerTy - s1.innerTy);
-  return { s0, s1, s2, s3, sOff, sNight, sBlocked, blockedErrors, topGap, mistInZone, groundDelta, ridgeDelta };
-}
-
 /* ---------- U4/AE2 scenario: seam continuity across a band boundary ---------- */
 
 async function scenarioSeam(browser, baseUrl) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   await page.addInitScript(installRecorder);
-  // Band content checks run at the pre-U7 camera (view=60): seam continuity
-  // and the ground palette are properties of the bands, not of the camera,
-  // and the grazing default makes the bisect and the pixel grid catch props.
-  await page.goto(`${baseUrl}/?t=day&view=60`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?t=day`, { waitUntil: 'load' });
   const maxY = await page.evaluate(() => Math.max(0, document.documentElement.scrollHeight - innerHeight));
   const bandsInfo = await page.evaluate(() => window.__journeyBands());
   const seamWorldY = bandsInfo[2].y0; // the boundary between band 1 and band 2
@@ -915,14 +798,9 @@ async function scenarioSeam(browser, baseUrl) {
 
   const vw = 1440;
   const xs = []; for (let i = 0; i < 30; i++) xs.push(Math.round(vw * 0.1 + i * (vw * 0.8 / 29)));
-  // Rows are kept inside the screenshot: at a grazing camera (U7 lowered
-  // the default view) a seam can sit near the top edge, and the reference
-  // rows go below it when there is no room above.
-  const vh = 900;
-  const rowsAt = centerY => { const rs = []; for (let dy = -20; dy < 20; dy++){ const y = Math.round(centerY) + dy; if (y >= 0 && y < vh) rs.push(y); } return rs; };
+  const rowsAt = centerY => { const rs = []; for (let dy = -20; dy < 20; dy++) rs.push(Math.round(centerY) + dy); return rs; };
   const seamRows = rowsAt(seamScreenY);
-  const refRows = rowsAt(seamScreenY - 300 >= 20 ? seamScreenY - 300 : seamScreenY + 300); // elsewhere on the same screenshot, away from any seam
-  if (seamRows.length < 10 || refRows.length < 10) return { maxSeamDiff: Infinity, typicalDiff: 0, threshold: 0, ok: false, seamScreenY };
+  const refRows = rowsAt(seamScreenY - 300); // elsewhere on the same screenshot, away from any seam
 
   const points = [];
   for (const y of [...seamRows, ...refRows]) for (const x of xs) points.push([x, y]);
@@ -967,10 +845,7 @@ async function scenarioPalette(browser, baseUrl, sample) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   await page.addInitScript(installRecorder);
-  // Band content checks run at the pre-U7 camera (view=60): seam continuity
-  // and the ground palette are properties of the bands, not of the camera,
-  // and the grazing default makes the bisect and the pixel grid catch props.
-  await page.goto(`${baseUrl}/?t=day&view=60`, { waitUntil: 'load' });
+  await page.goto(`${baseUrl}/?t=day`, { waitUntil: 'load' });
   const maxY = await page.evaluate(() => Math.max(0, document.documentElement.scrollHeight - innerHeight));
 
   const dirtAvg = imageAverageColor(path.join(ALPINE_DIR, 'dirt-trail-tile.webp'));
@@ -1015,17 +890,11 @@ async function scenarioPalette(browser, baseUrl, sample) {
 
     const vw = 1440, vh = 900;
     const inOverlay = (x, y) => overlayRects.some(r => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom);
-    // The row span covers a fixed world distance, not a fixed screen
-    // distance: at a grazing camera (U7 lowered the default view) 150
-    // screen px reach several times farther along the trail than they did
-    // at the original 30deg tilt, into the neighbouring season's ground.
-    const tiltDeg = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tilt')) || 30);
-    const rowSpan = 150 * Math.cos(tiltDeg * Math.PI / 180) / Math.cos(30 * Math.PI / 180);
     const points = [];
     for (let gy = 0; gy < 8 && points.length < 30; gy++) {
       for (let gx = 0; gx < 8 && points.length < 30; gx++) {
         const x = Math.round(vw * (0.05 + 0.9 * gx / 7));
-        const y = Math.round(clamp(anchorScreenY - rowSpan + 2 * rowSpan * gy / 7, 5, vh - 5));
+        const y = Math.round(clamp(anchorScreenY - 150 + 300 * gy / 7, 5, vh - 5));
         if (!inOverlay(x, y)) points.push([x, y]);
       }
     }
@@ -1151,26 +1020,6 @@ async function main() {
       if (!r.detectorFired || !r.notAllOneColor || !r.noBlankPixel || !r.atlasFailedClass || r.spriteCount === 0 || r.propSpriteCount < 2 || !r.silhouettePaints) allOk = false;
     }
 
-    // U7 scenario: painted backdrop.
-    {
-      const r = await scenarioBackdrop(browser, baseUrl);
-      console.log('\n=== U7: painted backdrop ===');
-      console.log(`skyH=${r.s0.skyH} spare=${r.s0.spare} mist=[${r.s0.mistTop}, ${r.s0.mistTop + r.s0.mistH}] drift=[${r.s0.innerTy.toFixed(1)}, ${r.s1.innerTy.toFixed(1)}, ${r.s2.innerTy.toFixed(1)}, ${r.s3.innerTy.toFixed(1)}] groundDelta=${r.groundDelta.toFixed(0)} ridgeDelta=${r.ridgeDelta.toFixed(1)} topGap=${JSON.stringify(r.topGap)} mistInZone=${JSON.stringify(r.mistInZone)}`);
-      const allBd = hits => hits.every(h => h === 'bd' || h === 'map');
-      const checks = [
-        ['#ridge precedes #zoom in the DOM (world paints over the backdrop)', r.s0.ridgeBeforeZoom],
-        ['all three backdrop images loaded', r.s0.loaded === 3 && r.s0.hidden.length === 0],
-        ['backdrop moves less than the ground between two positions', r.ridgeDelta < r.groundDelta && r.groundDelta > 0],
-        ['vertical drift is monotonic and bounded by the spare height', r.s0.innerTy <= r.s1.innerTy && r.s1.innerTy <= r.s2.innerTy && r.s2.innerTy <= r.s3.innerTy && r.s3.innerTy <= r.s0.spare + 0.5 && r.s0.innerTy >= -0.5],
-        ['night dims the backdrop, day does not', r.sNight.ridgeFilter !== 'none' && r.s0.ridgeFilter === 'none'],
-        ['?backdrop=off hides every image and adds nothing inside #map', r.sOff.hidden.length === 3 && r.sOff.mapChildren === r.s0.mapChildren],
-        ['a blocked backdrop image hides itself (computed display), the other two show, no page error', r.sBlocked.hidden.length === 1 && r.sBlocked.hidden[0] === 'backdrop-centre-range.webp' && r.sBlocked.loaded === 2 && r.blockedErrors.length === 0],
-        ['no gap at the top of the viewport at views 10 to 78 and on the phone', Object.values(r.topGap).every(allBd)],
-        ['the haze strip stays inside the sky zone at every view and on the phone', Object.values(r.mistInZone).every(Boolean)],
-      ];
-      checks.forEach(([n, ok]) => { console.log(`  [${ok ? 'PASS' : 'FAIL'}] ${n}`); if (!ok) allOk = false; });
-    }
-
     // U5 scenario: atlas sprites in groves.
     {
       const { painted: p, vector: v } = await scenarioGroveSprites(browser, baseUrl);
@@ -1203,7 +1052,7 @@ async function main() {
     {
       const r = await scenarioSeam(browser, baseUrl);
       console.log('\n=== Seam check (band boundary continuity) ===');
-      console.log(`seamScreenY=${r.seamScreenY} maxSeamDiff=${r.maxSeamDiff.toFixed(2)} typicalDiff=${r.typicalDiff.toFixed(2)} threshold=${r.threshold.toFixed(2)}`);
+      console.log(`maxSeamDiff=${r.maxSeamDiff.toFixed(2)} typicalDiff=${r.typicalDiff.toFixed(2)} threshold=${r.threshold.toFixed(2)}`);
       console.log(`  [${r.ok ? 'PASS' : 'FAIL'}] maxSeamDiff <= threshold`);
       if (!r.ok) allOk = false;
     }

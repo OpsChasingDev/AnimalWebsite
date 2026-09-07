@@ -86,10 +86,7 @@
   /* camera elevation: 90 = straight down, lower = more grazing.
      Default 60; tune live with ?view=NN (no deploy needed). */
   const params = new URLSearchParams(location.search);
-  // U7 lowered the default from 60 to 16 so the painted backdrop shows
-  // above the ground's far edge; at 60 the ground filled the whole viewport
-  // and no backdrop could ever be seen. Robert's call, 2026-09-07.
-  const VIEW = clamp(parseFloat(params.get('view')) || 16, 10, 78);
+  const VIEW = clamp(parseFloat(params.get('view')) || 60, 25, 78);
   const TILT = 90 - VIEW;
   document.documentElement.style.setProperty('--tilt', TILT.toFixed(1) + 'deg');
   const COS_T = Math.cos(TILT * Math.PI / 180);
@@ -1435,66 +1432,6 @@
   const endnote = document.getElementById('endnote');
   const zoom = document.getElementById('zoom');
   const ridge = document.getElementById('ridgeInner');
-
-  /* ---------- U7 painted backdrop ----------
-     Three opaque images (left flank, centre range, right flank) inside
-     #ridgeInner, behind .zoom (see the DOM comment in journey.html for why).
-     There is no true horizon at any usable camera angle: the .scene
-     perspective of 1400 px puts the vanishing line far above the viewport,
-     so what shows above the ground is the far edge of the alive bands, 2400
-     to 2400 + BANDH world px ahead of the camera. projectAhead() maps those
-     two distances to screen y with the same numbers the CSS uses, and
-     layoutBackdrop() turns them into the ridge height, the drift room and
-     the haze strip that hides a band popping in at that edge. The drift
-     factor is the spare height over the trail length, capped at 0.03, so
-     the drift can never exceed the spare height by the trail's end (the
-     clamp in update() is the hard bound) and never wraps. */
-  const BACKDROP_FILES = ['backdrop-left-flank.webp', 'backdrop-centre-range.webp', 'backdrop-right-flank.webp'];
-  const BACKDROP = !GROUND_FLAT && params.get('backdrop') !== 'off' && BACKDROP_FILES.every(f => assetUrl(f));
-  const bdImgs = ridge ? Array.from(ridge.querySelectorAll('img.bd')) : [];
-  let bdSpare = 0, bdFactor = 0;
-  function projectAhead(u){
-    const s = clamp(innerWidth / 1150, 0.52, 1), d = 1400;   // .zoom scale, .scene perspective
-    const oy = innerHeight * 0.36, y0 = innerHeight * 0.74;   // perspective-origin y, .zoom top
-    const t = TILT * Math.PI / 180;
-    // .zoom's scale(s) is a 2D scale: it shrinks x and y but leaves depth
-    // alone, so only the y term carries s.
-    const y = y0 - u * s * Math.cos(t), z = -u * Math.sin(t);   // far = up = away
-    return oy + (y - oy) * d / (d - z);
-  }
-  function layoutBackdrop(){
-    const root = document.documentElement.style;
-    if (!BACKDROP){
-      root.setProperty('--sky-h', '0px'); root.setProperty('--mist-h', '0px');
-      return;
-    }
-    const near = projectAhead(2400), far = projectAhead(2400 + BANDH);
-    const skyH = Math.max(0, near + 24);
-    bdSpare = Math.round(skyH * 0.25);
-    bdFactor = Math.min(0.03, bdSpare / Math.max(1, PLEN));
-    root.setProperty('--sky-h', skyH.toFixed(0) + 'px');
-    root.setProperty('--bd-spare', bdSpare + 'px');
-    // Both haze edges are clamped to the viewport before the height is
-    // taken from them, so a far edge above the top (a higher ?view) shrinks
-    // the strip to nothing instead of leaving a full-height band over the
-    // ground.
-    const mistTop = Math.max(0, far - 20), mistBottom = Math.max(mistTop, near + 44);
-    root.setProperty('--mist-top', mistTop.toFixed(0) + 'px');
-    root.setProperty('--mist-h', (mistBottom - mistTop).toFixed(0) + 'px');
-  }
-  if (ridge){
-    if (BACKDROP){
-      bdImgs.forEach(im => {
-        im.addEventListener('error', () => { im.hidden = true; });   // sky gradient shows instead (journey.css hides [hidden])
-        im.src = assetUrl(im.dataset.file);
-      });
-    } else {
-      bdImgs.forEach(im => { im.hidden = true; });
-    }
-    layoutBackdrop();
-    addEventListener('resize', layoutBackdrop);
-  }
-  const camY0 = atDist(0).y;
   const spacer = document.getElementById('spacer');
   spacer.style.height = Math.round(PLEN * 1.12 + innerHeight) + 'px';
   let lastIntro = null, lastLabel = '', lastMmx = -1, lastMmy = -1, lastEnd = null;
@@ -1540,14 +1477,7 @@
     const s = clamp(innerWidth / 1150, 0.52, 1);
     zoom.style.transform = `scale(${s.toFixed(3)})`;
     map.style.transform = `translate3d(${(-camX).toFixed(1)}px, ${(-camY).toFixed(1)}px, 0)`;
-    if (ridge){
-      const drift = clamp((camY0 - camY) * bdFactor, 0, bdSpare);
-      // The sideways shift scales with the zoom (s) so a phone, where the
-      // world is drawn at 0.52, gets a proportionally smaller shift that the
-      // centre image's 20% overhang still covers.
-      const s = clamp(innerWidth / 1150, 0.52, 1);
-      ridge.style.transform = `translate(${(-camX * 0.045 * s).toFixed(1)}px, ${drift.toFixed(1)}px)`;
-    }
+    if (ridge) ridge.style.transform = `translateX(${(-camX * 0.045).toFixed(1)}px)`;
 
     const arrived = camProg > 0.012;
     // Counted alongside the existing cull passes below (no extra walk) for
