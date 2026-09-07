@@ -664,6 +664,23 @@ async function scenarioBlockedDirtAtlas(browser, baseUrl) {
   await page.evaluate(() => window.dispatchEvent(new Event('scroll')));
   await page.waitForTimeout(60);
   const stats = await page.evaluate(() => window.__journeyStats);
+  // U5: the same blocked atlas must flip the grove-sprite CSS fallback and
+  // leave every sprite box in place (ink silhouettes, never vanished trees).
+  const groveFallback = await page.evaluate(() => {
+    const gi = document.querySelector('.grove .gi.sp.spruce');
+    const svg = gi && gi.querySelector('svg.sp-img');
+    return {
+      atlasFailedClass: document.getElementById('map').classList.contains('atlas-failed'),
+      spriteCount: document.querySelectorAll('.grove .gi.sp').length,
+      // the two standalone sprite props (lit tree, squirrel tree) keep a
+      // sized box under the same fallback
+      propSpriteCount: Array.from(document.querySelectorAll('.prop .sp')).filter(el => el.offsetHeight > 0).length,
+      // and a silhouette actually paints: image hidden, ink ::before with a clip
+      silhouettePaints: !!svg && getComputedStyle(svg).display === 'none' &&
+        getComputedStyle(gi, '::before').backgroundColor === 'rgb(36, 31, 26)' &&
+        getComputedStyle(gi, '::before').clipPath !== 'none',
+    };
+  });
 
   // Locate the trail on screen via the "you are here" paw marker — it's
   // positioned every frame at the camera's exact trail point (p.x, p.y in
@@ -705,7 +722,50 @@ async function scenarioBlockedDirtAtlas(browser, baseUrl) {
     detectorFired: stats.missingOverlays > 0,
     notAllOneColor: !allSame,
     noBlankPixel: !anyBlank,
+    atlasFailedClass: groveFallback.atlasFailedClass,
+    spriteCount: groveFallback.spriteCount,
+    propSpriteCount: groveFallback.propSpriteCount,
+    silhouettePaints: groveFallback.silhouettePaints,
   };
+}
+
+/* ---------- U5 scenario: atlas sprites in groves ---------- */
+// The plan's U5 test scenarios, read straight off the DOM after load: grove
+// count unchanged versus the vector build (?sprites=off takes the old code
+// path), no sprite taller than the 230 px ceiling, at least four distinct
+// spruce silhouettes, winter groves all snow-capped and no snow elsewhere.
+async function scenarioGroveSprites(browser, baseUrl) {
+  const read = async (query) => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await context.newPage();
+    await page.goto(`${baseUrl}/?t=day${query}`, { waitUntil: 'load' });
+    await page.waitForTimeout(500);
+    const r = await page.evaluate(() => {
+      const gis = Array.from(document.querySelectorAll('.grove .gi'));
+      const sp = gis.filter(g => g.classList.contains('sp'));
+      // offsetHeight is layout height, untouched by the grove's 3D transform
+      const maxH = Math.max(0, ...gis.map(g => g.offsetHeight));
+      const spruceCells = new Set(sp.filter(g => g.classList.contains('spruce') && !g.dataset.cell.startsWith('spruce-snow')).map(g => g.dataset.cell));
+      const winter = sp.filter(g => g.dataset.season === 'winter');
+      const notWinter = sp.filter(g => g.dataset.season && g.dataset.season !== 'winter');
+      return {
+        groves: document.querySelectorAll('.grove').length,
+        gis: gis.length, sprites: sp.length, maxH,
+        propSprites: document.querySelectorAll('.prop .sp svg.sp-img').length,
+        overflowHidden: sp.every(g => getComputedStyle(g.querySelector('svg')).overflow === 'hidden'),
+        distinctSpruce: spruceCells.size,
+        winterAllSnow: winter.length > 0 && winter.every(g => g.dataset.cell.startsWith('spruce-snow')),
+        winterCount: winter.length,
+        noSnowElsewhere: notWinter.every(g => !g.dataset.cell.startsWith('spruce-snow')),
+        atlasFailed: document.getElementById('map').classList.contains('atlas-failed'),
+      };
+    });
+    await context.close();
+    return r;
+  };
+  const painted = await read('');
+  const vector = await read('&sprites=off');
+  return { painted, vector };
 }
 
 /* ---------- U4/AE2 scenario: seam continuity across a band boundary ---------- */
@@ -953,7 +1013,31 @@ async function main() {
       console.log(`  [${r.detectorFired ? 'PASS' : 'FAIL'}] missingOverlays detector fired (missingOverlays > 0)`);
       console.log(`  [${r.notAllOneColor ? 'PASS' : 'FAIL'}] sampled trail pixels are not all one color`);
       console.log(`  [${r.noBlankPixel ? 'PASS' : 'FAIL'}] no sampled trail pixel is blank/white`);
-      if (!r.detectorFired || !r.notAllOneColor || !r.noBlankPixel) allOk = false;
+      console.log(`  [${r.atlasFailedClass ? 'PASS' : 'FAIL'}] #map.atlas-failed set for the grove silhouette fallback`);
+      console.log(`  [${r.spriteCount > 0 ? 'PASS' : 'FAIL'}] grove sprite boxes still present (${r.spriteCount})`);
+      console.log(`  [${r.propSpriteCount >= 2 ? 'PASS' : 'FAIL'}] prop sprite boxes (lit tree, squirrel tree) keep their size (${r.propSpriteCount})`);
+      console.log(`  [${r.silhouettePaints ? 'PASS' : 'FAIL'}] a grove sprite paints its ink silhouette (image hidden, ::before ink + clip)`);
+      if (!r.detectorFired || !r.notAllOneColor || !r.noBlankPixel || !r.atlasFailedClass || r.spriteCount === 0 || r.propSpriteCount < 2 || !r.silhouettePaints) allOk = false;
+    }
+
+    // U5 scenario: atlas sprites in groves.
+    {
+      const { painted: p, vector: v } = await scenarioGroveSprites(browser, baseUrl);
+      console.log('\n=== U5: grove atlas sprites ===');
+      console.log(`groves painted=${p.groves} vector=${v.groves}; sprites=${p.sprites}/${p.gis} maxH=${p.maxH} distinctSpruce=${p.distinctSpruce} winter=${p.winterCount}`);
+      const checks = [
+        ['grove count unchanged vs the vector build (?sprites=off)', p.groves === v.groves && p.gis === v.gis],
+        ['every grove item is an atlas sprite in painted mode', p.sprites === p.gis && p.sprites > 0],
+        ['the lit tree and squirrel tree props are atlas sprites', p.propSprites >= 2],
+        ['sprite svgs clip to their cell (overflow hidden)', p.overflowHidden],
+        ['?sprites=off draws no atlas sprites', v.sprites === 0],
+        ['no .gi taller than 230 px', p.maxH <= 230],
+        ['at least four distinct spruce silhouettes', p.distinctSpruce >= 4],
+        ['winter groves are all snow-capped spruce', p.winterAllSnow],
+        ['no snow-capped spruce outside winter', p.noSnowElsewhere],
+        ['atlas loaded (no fallback class)', !p.atlasFailed],
+      ];
+      checks.forEach(([n, ok]) => { console.log(`  [${ok ? 'PASS' : 'FAIL'}] ${n}`); if (!ok) allOk = false; });
     }
 
     // U4/KTD4 scenario: lookahead attach/detach snapshot at a fixed camera position.
