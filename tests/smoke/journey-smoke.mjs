@@ -794,6 +794,8 @@ async function scenarioGroveSprites(browser, baseUrl) {
 // the depth nudge that keeps the planes in front of the ground was tuned in
 // Chromium.
 const light = ([r, g, b]) => (r + g + b) / 3 > 170;
+// share of sample points whose colour differs between two reads of the same points
+const diffRatio = (a, b, threshold = 40) => a.filter((p, i) => Math.abs(p[0] - b[i][0]) + Math.abs(p[1] - b[i][1]) + Math.abs(p[2] - b[i][2]) > threshold).length / a.length;
 async function rangeEndRead(page, shotFn) {
   // The end of the scroll: the centre painting's box, the today card, the
   // horizontal coverage of the painting's base row by the tree line (and any
@@ -832,7 +834,6 @@ async function rangeEndRead(page, shotFn) {
       // fixed overlays that sit on the painting: the endnote card and the minimap
       overlays: ['endnote', 'minimap'].map(id => { const e = document.getElementById(id); if (!e) return null; const b = e.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom }; }).filter(Boolean),
       todayOn: !!today && today.classList.contains('on') && getComputedStyle(today).opacity === '1',
-      range: window.__journeyRange || null,
       surfaces: window.__journeyStats ? window.__journeyStats.aliveSurfaces : null,
     };
   });
@@ -865,13 +866,11 @@ async function rangeOffDiff(browserLike, ctxOpts, baseUrl, read) {
   await page.waitForTimeout(2500);
   const px = samplePixels(await page.screenshot(), read.midPts.map(([x, y]) => [Math.round(x * read.geo.dpr), Math.round(y * read.geo.dpr)]));
   await context.close();
-  let diff = 0;
-  px.forEach((p, i) => { const q = read.midPx[i]; if (Math.abs(p[0] - q[0]) + Math.abs(p[1] - q[1]) + Math.abs(p[2] - q[2]) > 40) diff++; });
-  return diff / px.length;
+  return diffRatio(px, read.midPx);
 }
 async function scenarioRange(browser, baseUrl) {
   const out = { errors: [] };
-  const open = async (ctxOpts, query, block) => {
+  const open = async (ctxOpts, query, block, t = 'day') => {
     const context = await browser.newContext(ctxOpts);
     if (block) await context.route(block, r => r.abort());
     const page = await context.newPage();
@@ -884,7 +883,7 @@ async function scenarioRange(browser, baseUrl) {
       if (block && url.includes(block.replace(/^\*\*\//, '').split('*')[0])) return;  // the blocked file itself
       errs.push(`${m.text()} [${url}]`);
     });
-    await page.goto(`${baseUrl}/?t=day${query}`, { waitUntil: 'load' });
+    await page.goto(`${baseUrl}/?t=${t}${query}`, { waitUntil: 'load' });
     await page.waitForTimeout(700);
     return { context, page, errs };
   };
@@ -899,8 +898,8 @@ async function scenarioRange(browser, baseUrl) {
     out.farBoxes = await page.evaluate(() => [...document.querySelectorAll('.prop.range img')].map(i => { const r = i.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.bottom)]; }));
     out.farIntersects = out.farBoxes.some(([t, b]) => b > 0 && t < 1000);
     await at(600);
-    const near = await page.evaluate(() => { const i = document.querySelector('.prop.range img[src*="centre"]'); const r = i.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, vh: innerHeight }; });
-    out.nearBottomInside = near.bottom > 0 && near.bottom < near.vh;
+    const near = await page.evaluate(() => { const i = document.querySelector('.prop.range img[src*="centre"]'); const r = i ? i.getBoundingClientRect() : null; return r ? { top: r.top, bottom: r.bottom, vh: innerHeight } : null; });
+    out.nearBottomInside = !!near && near.bottom > 0 && near.bottom < near.vh;
     if (out.nearBottomInside) {
       const y = Math.max(1, Math.round(near.bottom - 40));
       const pts = Array.from({ length: 10 }, (_, i) => [200 + i * 110, y]);
@@ -909,7 +908,7 @@ async function scenarioRange(browser, baseUrl) {
       await offPage.goto(`${baseUrl}/?t=day&range=off`, { waitUntil: 'load' }); await offPage.waitForTimeout(700);
       await offPage.evaluate(y2 => window.scrollTo(0, y2), Math.round(maxY * (1 - 600 / plen))); await offPage.waitForTimeout(2200);
       const off = samplePixels(await offPage.screenshot(), pts); await offCtx.close();
-      out.nearNotGround = px.filter((p, i) => Math.abs(p[0] - off[i][0]) + Math.abs(p[1] - off[i][1]) + Math.abs(p[2] - off[i][2]) > 40).length / px.length;
+      out.nearNotGround = diffRatio(px, off);
     } else out.nearNotGround = 0;
     out.desktop = await rangeEndRead(page, () => page.screenshot());
     out.desktop.offDiff = await rangeOffDiff(browser, desktopOpts, baseUrl, out.desktop);
@@ -978,17 +977,21 @@ async function scenarioRange(browser, baseUrl) {
   }
   // Night: no filter inside the 3D tree; the sky tint overlay does the work.
   {
-    const { context, page } = await open(desktopOpts, '&t=night');
+    const { context, page } = await open(desktopOpts, '', null, 'night');
     out.night = await page.evaluate(() => ({
+      isNight: document.body.classList.contains('t-night'),
       skytint: !!document.getElementById('skytint'),
       filtered: [...document.querySelectorAll('#map .range, #map .range *')].filter(e => getComputedStyle(e).filter !== 'none').length,
     }));
     await context.close();
   }
   // WebKit: the same end-position read, when the engine is installed.
-  out.webkit = null;
-  try {
-    const wb = await webkit.launch();
+  // Only a launch failure (engine not installed) skips the read; an error
+  // inside the read is a failure of the check, never a silent skip.
+  out.webkit = null; out.webkitError = null;
+  let wb = null;
+  try { wb = await webkit.launch(); } catch (e) { out.webkitSkipped = String(e).slice(0, 120); }
+  if (wb) {
     try {
       const context = await wb.newContext(desktopOpts);
       const page = await context.newPage();
@@ -997,8 +1000,9 @@ async function scenarioRange(browser, baseUrl) {
       out.webkit = await rangeEndRead(page, () => page.screenshot());
       await context.close();
       out.webkit.offDiff = await rangeOffDiff(wb, desktopOpts, baseUrl, out.webkit);
-    } finally { await wb.close(); }
-  } catch (e) { out.webkitSkipped = String(e).slice(0, 120); }
+    } catch (e) { out.webkitError = String(e).slice(0, 160); }
+    finally { await wb.close(); }
+  }
   return out;
 }
 
@@ -1475,7 +1479,8 @@ async function main() {
       const r = await scenarioRange(browser, baseUrl);
       console.log('\n=== U7: trail-end range ===');
       const fmt = e => e ? `cover=${e.coverage.toFixed(2)} topLight=${e.topLight.toFixed(2)} vsOff=${(e.offDiff || 0).toFixed(2)} baseCover=${(e.baseCoverage || 0).toFixed(2)} today=${e.geo.todayOn} surfaces=${e.geo.surfaces}` : 'none';
-      console.log(`desktop ${fmt(r.desktop)}; phone ${fmt(r.phone)} enterAt=${r.phoneEnter}; webkit ${r.webkit ? fmt(r.webkit) : 'skipped: ' + r.webkitSkipped}`);
+      console.log(`desktop ${fmt(r.desktop)}; phone ${fmt(r.phone)} enterAt=${r.phoneEnter}; webkit ${r.webkit ? fmt(r.webkit) : r.webkitError ? 'ERROR: ' + r.webkitError : 'skipped: ' + r.webkitSkipped}`);
+      if (r.webkitSkipped) console.log(`  (warn) WebKit not installed; the Safari paint-order read did not run`);
       console.log(`far boxes=${JSON.stringify(r.farBoxes)} near inside=${r.nearBottomInside} nearVsOff=${(r.nearNotGround || 0).toFixed(2)} tail=${JSON.stringify(r.tailD)} off tail=${JSON.stringify(r.off.tail)} scrollHeight painted=${r.desktopScrollHeight} off=${r.off.sh} trees=${r.treeBillboards} grass=${r.grassCount} blocked=${JSON.stringify(r.blocked)}`);
       const checks = [
         ['AE1 desktop: the range fills the top 55-80% of the frame at the end', r.desktop.coverage >= 0.55 && r.desktop.coverage <= 0.8],
@@ -1495,9 +1500,9 @@ async function main() {
         ['two tree-line billboards with static grass, clipped to their cells', r.treeBillboards === 2 && r.grassCount > 0 && r.grassClipped],
         ['?sprites=off: the vector tree line still covers the base', r.vector.geo.box !== null && r.vector.baseCoverage >= 0.85 && r.vectorErrors.length === 0],
         ['a missing grass sheet leaves the tree line standing, no error', r.noGrassTree === 2 && r.noGrassErrors.length === 0],
-        ['R14: night uses the sky tint, no filter inside the 3D tree', r.night.skytint && r.night.filtered === 0],
+        ['R14: night mode loads, uses the sky tint, no filter inside the 3D tree', r.night.isNight && r.night.skytint && r.night.filtered === 0],
         ['no page error in the painted, vector or phone reads', r.errors.length === 0],
-        ['WebKit: the painting stays in front of the ground at the end (or engine not installed)', r.webkit === null || r.webkit.offDiff >= 0.6],
+        ['WebKit: the painting stays in front of the ground at the end (skipped only when the engine is not installed)', !r.webkitError && (r.webkit === null ? !!r.webkitSkipped : r.webkit.offDiff >= 0.6)],
       ];
       checks.forEach(([n, ok]) => { console.log(`  [${ok ? 'PASS' : 'FAIL'}] ${n}`); if (!ok) allOk = false; });
       if (r.errors.length) console.log(`  errors: ${r.errors.slice(0, 3).join(' | ')}`);

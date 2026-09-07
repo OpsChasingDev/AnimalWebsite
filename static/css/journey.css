@@ -68,6 +68,7 @@ body.t-night .pawmark svg{filter:drop-shadow(0 0 5px rgba(233,201,90,.85));}
 .prop.range{transform:translate(-50%,-100%) rotateX(calc(var(--tilt) * -1)) translateZ(40px);}
 .prop.range img{display:block;}
 .grove.range{transform:rotateX(calc(var(--tilt) * -1)) translateZ(40px);}
+.prop.sway.fore{transform:translate(-50%,-100%) rotateX(calc(var(--tilt) * -1)) translateZ(40px);}
 [hidden]{display:none !important;}
 .grove .gi svg{display:block; overflow:visible;}
 /* U5 atlas sprites (.gi.sp, sized inline). The nested-svg crop relies on

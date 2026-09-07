@@ -1640,7 +1640,8 @@
   const GRASS = ART['grass-clumps.webp'];
   const GRASS_URL = assetUrl('grass-clumps.webp'), HIGHLIGHT_URL = assetUrl('water-highlight.webp');
   const GRASS_CELLS = ((GRASS && GRASS.cells) || []);
-  const MOTION = !LITE && !reduced && !GROUND_FLAT && GROUND_MOTION && !!GRASS_URL && !!HIGHLIGHT_URL && GRASS_CELLS.length >= 4;
+  const GRASS_READY = !!GRASS_URL && GRASS_CELLS.length >= 4;
+  const MOTION = !LITE && !reduced && !GROUND_FLAT && GROUND_MOTION && GRASS_READY && !!HIGHLIGHT_URL;
   const swayPlaced = [];
   // A clump's own keep-out: a 128 x 64 billboard only has to stay out from
   // under a camp's 270 px frame and its post, not the 450 x 460 px zone the
@@ -1656,7 +1657,6 @@
   // drawn after the sprites, the same order as before); without it the box
   // is static and lives inside a grove billboard, where the sp-img class
   // clips each cell to its sheet cell (.grove .gi svg.sp-img).
-  const GRASS_OK = !!GRASS_URL && GRASS_CELLS.length >= 4;
   const clumpMarkup = (gen, sway) => {
     const gw = GRASS.size[0], gh = GRASS.size[1];
     const n = 3 + Math.floor(gen() * 3);   // 3..5 sprites
@@ -1754,10 +1754,11 @@
       const [w, h] = RANGE_ART[i].size;
       return `<img src="${RANGE_URLS[i]}" width="${w}" height="${h}" alt="">`;
     };
+    const planeFar = rangeFar(RANGE_BASE_Y);
     const planes = [
-      prop(CX - 1680, RANGE_BASE_Y, rangeImg(1), {cls: 'range', far: rangeFar(RANGE_BASE_Y)}),
-      prop(CX + 1680, RANGE_BASE_Y, rangeImg(2), {cls: 'range', far: rangeFar(RANGE_BASE_Y)}),
-      prop(CX, RANGE_BASE_Y, rangeImg(0), {cls: 'range', far: rangeFar(RANGE_BASE_Y)}),
+      prop(CX - 1680, RANGE_BASE_Y, rangeImg(1), {cls: 'range', far: planeFar}),
+      prop(CX + 1680, RANGE_BASE_Y, rangeImg(2), {cls: 'range', far: planeFar}),
+      prop(CX, RANGE_BASE_Y, rangeImg(0), {cls: 'range', far: planeFar}),
     ];
     planes.forEach(el => el.querySelector('img').addEventListener('error', ev => { ev.target.hidden = true; }));
 
@@ -1800,7 +1801,7 @@
             items.push({x: x + side * 30, y: by, svg: boulderSVG(bw)});
           }
         }
-        if (GRASS_OK && k % 3 === 1){   // static grass between the trunks
+        if (GRASS_READY && k % 3 === 1){   // static grass between the trunks
           items.push({x: x + side * 35, y: Math.min(treeMaxY, yy + 20 + rangeRnd() * 20), grass: clumpMarkup(rangeRnd, false)});
         }
         x += side * (60 + rangeRnd() * 30);
@@ -1834,12 +1835,14 @@
         const x = RANGE_END.x + (t % 2 ? 1 : -1) * (240 + rangeRnd() * 700);
         const yy = treeMaxY + 10 + rangeRnd() * 40;
         if (grassClear(x, yy)) continue;
-        const el = prop(x, yy, clumpMarkup(rangeRnd, true), {cls: 'sway'});
+        // 'fore' carries the same translateZ nudge as the tree line, so these
+        // clumps stay in front of it instead of sorting behind its nudged plane.
+        const el = prop(x, yy, clumpMarkup(rangeRnd, true), {cls: 'sway fore'});
         swayPlaced.push({x, y: yy, el});
         swayHere++;
       }
     }
-    window.__journeyRange = { baseY: RANGE_BASE_Y, endY: RANGE_END.y, far: rangeFar(RANGE_BASE_Y), treeLine, swayHere };
+    window.__journeyRange = { baseY: RANGE_BASE_Y, endY: RANGE_END.y, far: planeFar, treeLine, swayHere };
   }
   window.__journeyMotion = { on: MOTION, sway: swayPlaced.map(s => ({x: s.x, y: s.y})) };
 
