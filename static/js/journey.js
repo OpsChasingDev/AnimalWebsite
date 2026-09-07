@@ -464,24 +464,66 @@
   // The trail winds, though: pick the widest gap and crossing where the
   // bridge sits more than a billboard's half-width to the side of that
   // event (or fully beyond its shadow), so the bridge stays clickable-clear.
-  const bridgeClear = (cy, near) => !near ||
-    Math.abs(trailXAtY(cy) - near.x) > 330 || cy + 94 < near.y - 420;
+  // Where does the trail cross a given row? trailXAtY() is ambiguous on an
+  // S-bend (the trail doubles back over the same rows), so the crossings
+  // are read off the sampled trail polyline instead: one entry per sign
+  // change, with the crossing x and the trail's angle from vertical there.
+  const trailCrossings = (y) => {
+    const out = [];
+    for (let i = 1; i <= SAMPLES; i++){
+      const a = lut[i - 1], b = lut[i];
+      if ((a.y - y) * (b.y - y) > 0 || a.y === b.y) continue;
+      const t = (y - a.y) / (b.y - a.y);
+      // direction over a longer stretch so the angle is not sample noise
+      const p0 = lut[Math.max(0, i - 12)], p1 = lut[Math.min(SAMPLES, i + 12)];
+      const dx = p1.x - p0.x, dy = p1.y - p0.y;
+      out.push({x: a.x + (b.x - a.x) * t, angle: Math.atan2(dx, Math.abs(dy) || 1) * 180 / Math.PI});
+    }
+    return out;
+  };
+  // A bridge needs exactly one crossing of the deck's row.
+  const bridgeSpot = (cy) => {
+    const c = trailCrossings(cy + 30);
+    return c.length === 1 ? c[0] : null;
+  };
+  // Clearance is sized to the billboard in question: the union's two pet
+  // circles reach about 280 px either side of its point, a camp card 135;
+  // plus the rotated deck's reach (about 110) and a margin.
+  const bbHalf = p => (p.e && p.e.type === 'union') ? 290 : 140;
+  const bridgeClear = (cy, near) => {
+    const spot = bridgeSpot(cy);
+    if (!spot) return false;
+    return !near || Math.abs(spot.x - near.x) > bbHalf(near) + 130 || cy + 94 < near.y - 420;
+  };
   // The squirrel's tree and the deer are placed later at fixed fractions of
   // the trail; neither belongs in the water, so their stretches are skipped.
   const critterYs = [atDist(PLEN * 0.34).y, atDist(PLEN * 0.56).y];
   const critterFree = (y, r) => critterYs.every(cy => Math.abs(cy - y) > r);
   let creekY = null, creekGap = null;
-  for (const g of gapList.slice(0, 6)){
+  const creekTries = [];   // diagnostics for the smoke and for tuning
+  // Scan every quiet stretch in 20 px steps and keep the clear crossing
+  // where the trail is closest to square-on; the gaps here are only about
+  // 400 px, so a handful of fixed fractions would miss most of each one.
+  // The trail begins with a straight 700 px stub below the first event (see
+  // dStr): no events, no billboard standing in front of it, a square
+  // crossing on the first screen, which is where the plan wanted the creek.
+  const stubGap = pts.length ? {y0: pts[0].y + 700, y1: pts[0].y, size: 700, stub: true} : null;
+  let best = null;
+  for (const g of (stubGap ? [stubGap] : []).concat(gapList.slice(0, 6))){
     if (g.size < 300) continue;
-    if (!critterFree((g.y0 + g.y1) / 2, 360)) continue;
-    const near = pts.find(p => p.y === g.y0);
-    for (const f of [0.5, 0.35, 0.65, 0.2, 0.8]){
-      const cy = g.y0 - g.size * f;
-      if (cy < g.y1 + 150 || cy > g.y0 - 150) continue;
-      if (bridgeClear(cy, near)){ creekY = cy; creekGap = g; break; }
+    if (!critterFree((g.y0 + g.y1) / 2, 360)){ creekTries.push({y0: g.y0, size: g.size, skip: 'critter'}); continue; }
+    const near = g.stub ? null : pts.find(p => p.y === g.y0);
+    for (let cy = g.y1 + 120; cy <= g.y0 - 120; cy += 20){
+      const cross = trailCrossings(cy + 30);
+      if (cross.length !== 1) continue;
+      const dx = near ? Math.abs(cross[0].x - near.x) : Infinity;
+      const clear = !near || dx > bbHalf(near) + 130 || cy + 94 < near.y - 420;
+      const angle = Math.abs(cross[0].angle);
+      creekTries.push({y0: g.y0, cy, angle: Math.round(cross[0].angle), dx: Math.round(dx), need: near ? bbHalf(near) + 130 : 0, ok: clear});
+      if (clear && (!best || angle < best.angle - 0.5 || (Math.abs(angle - best.angle) <= 0.5 && dx > best.dx))) best = {cy, g, angle, dx};
     }
-    if (creekY !== null) break;
   }
+  if (best){ creekY = best.cy; creekGap = best.g; }
   if (creekY === null){ creekGap = gapList[0] || null; creekY = creekGap ? (creekGap.y0 + creekGap.y1) / 2 : LEN / 2; }
   const pondG = gapList.find(g => g !== creekGap && critterFree((g.y0 + g.y1) / 2, 420)) || null;
 
@@ -489,8 +531,21 @@
   // One source for the creek's quadratic chain: the painted path and the U8
   // flow clip both read it, so they can never disagree.
   const creekCtrlY = x => creekY + ((x / 300) % 2 ? 74 : -12);
+  // The deck sits where the trail actually crosses the water (its x at the
+  // deck's own row, creekY + 30) and turns to the trail's direction there,
+  // so a diagonal crossing gets a diagonal bridge instead of one beside the
+  // path. Positive rotate() turns clockwise with y down, so a trail that
+  // drifts right as it comes nearer (dx > 0) needs a negative angle.
+  const bridgeY = creekY + 30;
+  const bridgeCross = bridgeSpot(creekY) || trailCrossings(bridgeY)[0] || {x: trailXAtY(bridgeY), angle: 0};
+  const cx = bridgeCross.x;
+  // The deck turns toward the trail but no further than 30deg: on this
+  // trail the clear crossings are steep, and a deck turned 70deg reads as
+  // a raft lying along the river, while a trail bending onto a bridge
+  // reads fine.
+  const bridgeRot = -clamp(bridgeCross.angle, -30, 30);
+  const bridgeTransform = `translate(${cx}, ${bridgeY}) rotate(${bridgeRot.toFixed(1)})`;
   {
-    const cx = trailXAtY(creekY);
     let cd = `M -1100 ${creekY + 40}`;
     for (let x = -1000; x <= W + 1100; x += 300){
       cd += ` Q ${x - 150} ${creekCtrlY(x)}, ${x} ${creekY + 30}`;
@@ -500,7 +555,7 @@
        <path d="${cd}" fill="none" stroke="#9DC2CC" stroke-width="40" stroke-linecap="round" opacity=".8"/>
        <path d="${cd}" class="shimmer" fill="none" stroke="#E9F3F0" stroke-width="7"
              stroke-linecap="round" stroke-dasharray="18 70" opacity=".55"/>
-       <g transform="translate(${cx}, ${creekY + 30})">
+       <g transform="${bridgeTransform}">
          <rect x="-95" y="-58" width="190" height="116" rx="10" fill="#9A7E52"/>
          <g stroke="#7C6540" stroke-width="5">${[-38,-14,10,34].map(o => `<line x1="${o}" y1="-58" x2="${o}" y2="58"/>`).join('')}</g>
          <rect x="-101" y="-64" width="202" height="11" rx="5" fill="#7C6540"/>
@@ -519,7 +574,7 @@
        <path d="${cd}" fill="none" stroke="${INK_COLOR}" stroke-width="72" stroke-linecap="round" stroke-opacity=".8"/>
        <path d="${cd}" fill="none" stroke="#2E7A80" stroke-width="64" stroke-linecap="round"/>
        <path d="${cd}" fill="none" stroke="url(#cw${bi})" stroke-width="64" stroke-linecap="round"/>
-       <g transform="translate(${cx}, ${creekY + 30})" stroke="${INK_COLOR}" stroke-width="3">
+       <g transform="${bridgeTransform}" stroke="${INK_COLOR}" stroke-width="3">
          <rect x="-95" y="-58" width="190" height="116" rx="10" fill="#9A7E52"/>
          <g stroke="#7C6540" stroke-width="5">${[-38,-14,10,34].map(o => `<line x1="${o}" y1="-58" x2="${o}" y2="58"/>`).join('')}</g>
          <rect x="-101" y="-64" width="202" height="11" rx="5" fill="#7C6540"/>
@@ -565,7 +620,7 @@
       <ellipse cx="90" cy="-40" rx="16" ry="9" fill="#6E8F4E" stroke="${INK_COLOR}" stroke-width="2"/>
     </g>`;
   // Debug hook for the smoke's U6 scenario: where the water is.
-  window.__journeyWater = { creekY, bridgeX: trailXAtY(creekY), pond: pondPos, painted: PAINT_WATER };
+  window.__journeyWater = { creekY, bridgeX: cx, bridgeRot, pond: pondPos, painted: PAINT_WATER, tries: creekTries };
 
   bands.forEach((b, bandIdx) => {
     if (GROUND_FLAT){
@@ -1605,7 +1660,7 @@
       // The bridge deck (cx +- 101 world px) is cut out of the clip by
       // collapsing the band to zero height across it, so highlights never
       // paint over the deck or the paw prints crossing it.
-      const bx = trailXAtY(creekY);
+      const bx = cx;
       let px = -1100, py = creekY + 40;
       for (let x = -1000; x <= W + 1100; x += 300){
         const cx = x - 150, cy = creekCtrlY(x), ex = x, ey = creekY + 30;
@@ -1614,7 +1669,7 @@
           const my = (1 - t) * (1 - t) * py + 2 * (1 - t) * t * cy + t * t * ey;
           // the trail crosses the creek at an angle and is 120 px wide plus
           // ink edges, so the cut follows the trail, not just the deck
-          const onBridge = Math.abs(mx - bx) < 101 || Math.abs(mx - trailXAtY(my)) < 150;
+          const onBridge = Math.abs(mx - bx) < 101 || trailCrossings(my).some(c => Math.abs(mx - c.x) < 150);
           up.push(`${(mx - left).toFixed(0)}px ${(my + (onBridge ? 30 : -30) - top).toFixed(0)}px`);
           down.unshift(`${(mx - left).toFixed(0)}px ${(my + 30 - top).toFixed(0)}px`);
         }
