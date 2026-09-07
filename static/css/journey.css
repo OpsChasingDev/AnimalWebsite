@@ -52,6 +52,19 @@ body.t-night .pawmark svg{filter:drop-shadow(0 0 5px rgba(233,201,90,.85));}
   transform:rotateX(calc(var(--tilt) * -1)); pointer-events:none; backface-visibility:hidden;}
 .grove .gi{position:absolute; transform:translateX(-50%);}
 .grove .gi svg{display:block; overflow:visible;}
+/* U5 atlas sprites (.gi.sp, sized inline). The nested-svg crop relies on
+   the svg viewport clipping its full-atlas <image>, so the overflow:visible
+   the vector trees needed must not apply to sprite svgs (otherwise every
+   sprite paints the whole sheet around itself). If the atlas fails to load
+   (#map.atlas-failed, set by the probe in journey.js) the empty image hides
+   and a flat ink silhouette takes the same box, so neither groves nor the
+   two sprite props (lit tree, squirrel tree) ever vanish. */
+.grove .gi svg.sp-img, .prop svg.sp-img{overflow:hidden;}
+#map.atlas-failed .sp svg.sp-img{display:none;}
+#map.atlas-failed .sp::before{content:""; position:absolute; inset:0; background:#241F1A;}
+#map.atlas-failed .sp.spruce::before{clip-path:polygon(50% 0, 82% 62%, 100% 100%, 0 100%, 18% 62%);}
+#map.atlas-failed .sp.broadleaf::before{border-radius:50% 50% 35% 35% / 60% 60% 30% 30%;}
+#map.atlas-failed .sp.boulder::before{border-radius:48% 52% 45% 55% / 60% 55% 45% 40%;}
 
 .bb .nm, .bb .age, .bb .sub, .bb .yrs, .bb .line, .bb-today h2, .bb-today p{
   text-shadow:0 1px 0 rgba(238,240,224,.85), 0 0 4px rgba(238,240,224,.95), 0 0 16px rgba(238,240,224,.85);}

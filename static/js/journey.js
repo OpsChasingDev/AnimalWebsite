@@ -156,6 +156,41 @@
     return `<svg x="${ax - c.w/2}" y="${ay - c.h/2}" width="${c.w}" height="${c.h}" ` +
       `viewBox="${c.x} ${c.y} ${c.w} ${c.h}"><image class="atlas" width="${ATLAS_SIZE[0]}" height="${ATLAS_SIZE[1]}"/></svg>`;
   }
+  // U5: grove and prop sprites. Same nested-svg crop idiom, but sized to a
+  // display box (w x h css px) and carrying the atlas href from the start:
+  // groves are HTML props inside the 3D map, not band SVGs, so there is no
+  // lookahead attach to wait for, and the atlas is the one bitmap the band
+  // details already decode. Painted mode only; flat mode (or a manifest
+  // without the atlas) keeps the procedural pine/broadleaf/boulder SVGs as
+  // the faithful rollback, the same way the ground does.
+  // Every cell the grove and prop builders address; the gate checks the
+  // whole set so a partial or renamed manifest falls back to the vector
+  // trees instead of throwing inside the synchronous world build.
+  const GROVE_CELLS = ['spruce-tall-a', 'spruce-tall-b', 'spruce-tall-c', 'spruce-tall-d',
+    'spruce-short-a', 'spruce-short-b', 'spruce-short-c', 'spruce-short-d',
+    'spruce-snow-a', 'spruce-snow-b', 'spruce-snow-c', 'broadleaf-a', 'broadleaf-b',
+    'boulder-a', 'boulder-b', 'boulder-c', 'boulder-d'];
+  const GROVE_SPRITES = !GROUND_FLAT && GROUND_SPRITES && !!ATLAS_URL && GROVE_CELLS.every(n => ATLAS_CELLS[n]);
+  function spriteMarkup(name, w, h){
+    const c = ATLAS_CELLS[name];
+    return `<svg class="sp-img" width="${w.toFixed(0)}" height="${h.toFixed(0)}" ` +
+      `viewBox="${c.x} ${c.y} ${c.w} ${c.h}"><image width="${ATLAS_SIZE[0]}" height="${ATLAS_SIZE[1]}" href="${ATLAS_URL}"/></svg>`;
+  }
+  // Display height h, cell aspect preserved. Every cell is at most 230 px
+  // tall and callers never pass h above that, so no .gi exceeds the plan's
+  // sprite ceiling (KTD3).
+  function spriteBox(name, h){
+    const c = ATLAS_CELLS[name];
+    return {w: c.w * h / c.h, h};
+  }
+  // A prop-side sprite: the same sized .sp box a grove item gets, so the
+  // #map.atlas-failed silhouette rules cover props too and the box keeps
+  // its size when the sprite image is hidden.
+  function spriteBoxMarkup(name, h, kind, inner = ''){
+    const box = spriteBox(name, h);
+    return `<div class="sp ${kind}" style="position:relative; width:${box.w.toFixed(0)}px; height:${box.h.toFixed(0)}px;">` +
+      spriteMarkup(name, box.w, box.h) + inner + `</div>`;
+  }
 
   /* The ground is sliced into band SVGs, culled independently, so no single
      giant raster surface ever exists (the previous one crashed iOS Safari). */
@@ -597,7 +632,10 @@
     if (ATLAS_URL){
       const atlasProbe = new Image();
       atlasProbe.addEventListener('load', () => { atlasState = 'painted'; });
-      atlasProbe.addEventListener('error', () => { atlasState = 'failed'; });
+      // A failed atlas also flips the CSS fallback for grove sprites: each
+      // .gi.sp hides its (empty) image and shows a flat ink silhouette
+      // instead, so trees never vanish (journey.css, #map.atlas-failed).
+      atlasProbe.addEventListener('error', () => { atlasState = 'failed'; map.classList.add('atlas-failed'); });
       atlasProbe.src = ATLAS_URL;
     }
   }
@@ -652,17 +690,30 @@
       s += `<path d="M ${w/2} ${h*ty} L ${w/2 - half} ${h*(ty + 0.34)} L ${w/2 + half} ${h*(ty + 0.34)} Z"
              fill="${i % 2 ? dark : tone}"/>`;
     });
-    if (lights){
-      s += `<g class="xlights">`;
-      for (let i = 0; i < 7; i++){
-        const ly = h * (0.26 + 0.5 * (i / 6));
-        const spreadHalf = (w * (0.5 + 0.5 * i / 6)) / 2 * 0.8;
-        const lx = w/2 + (i % 2 ? 1 : -1) * spreadHalf * (0.4 + 0.55 * rnd());
-        s += `<circle cx="${lx}" cy="${ly}" r="3.4" fill="${['#E25555','#EFC94C','#7FB5E2','#8FBF6A'][i % 4]}"/>`;
-      }
-      s += `</g>`;
-    }
+    if (lights) s += lightsSVG(w, h);
     return s + '</svg>';
+  }
+  // String of holiday lights for a w x h tree box. Seven rnd() calls, the
+  // same count whether it decorates the procedural pine or sits as its own
+  // svg over an atlas spruce, so the seeded layout downstream is unchanged.
+  function lightsSVG(w, h){
+    let s = `<g class="xlights">`;
+    for (let i = 0; i < 7; i++){
+      const ly = h * (0.26 + 0.5 * (i / 6));
+      const spreadHalf = (w * (0.5 + 0.5 * i / 6)) / 2 * 0.8;
+      const lx = w/2 + (i % 2 ? 1 : -1) * spreadHalf * (0.4 + 0.55 * rnd());
+      s += `<circle cx="${lx}" cy="${ly}" r="3.4" fill="${['#E25555','#EFC94C','#7FB5E2','#8FBF6A'][i % 4]}"/>`;
+    }
+    return s + `</g>`;
+  }
+  // Decorated spruce prop: atlas snow spruce with the lights overlaid in
+  // painted mode, the procedural lit pine in flat mode.
+  function litTreeMarkup(h){
+    if (!GROVE_SPRITES) return pineSVG(h, '#4A5B48', '#3C4B3A', true);
+    const box = spriteBox('spruce-snow-b', h);
+    return spriteBoxMarkup('spruce-snow-b', h, 'spruce',
+      `<svg width="${box.w.toFixed(0)}" height="${box.h.toFixed(0)}" viewBox="0 0 ${box.w} ${box.h}" ` +
+      `style="position:absolute; left:0; top:0;">${lightsSVG(box.w, box.h)}</svg>`);
   }
   function broadleafSVG(h, tone){
     const w = h * 0.9;
@@ -711,7 +762,23 @@
     const isPine = rnd() < 0.74;
     const leafTone = season === 'autumn' ? (rnd() > 0.5 ? '#A8722E' : '#96823C')
                    : season === 'winter' ? '#87947A' : (rnd() > 0.5 ? '#54763C' : '#5F8244');
-    groveItems.push({x, y: yy, svg: isPine ? pineSVG(h, tone, dark) : broadleafSVG(h * 0.8, leafTone), sh: h * 0.3});
+    if (GROVE_SPRITES){
+      // U5: pick an atlas cell. The silhouette index comes from h's low
+      // digits rather than another rnd() call, so the seeded sequence (and
+      // every grove count and position after it) is exactly the vector
+      // build's. Winter groves are all snow-capped spruce (R6); elsewhere
+      // the 26% broadleaf share stays, rust in autumn.
+      const pick = Math.floor(h * 1000);
+      let cell, dh;
+      if (season === 'winter'){ cell = 'spruce-snow-' + 'abc'[pick % 3]; dh = h; }
+      else if (!isPine){ cell = season === 'autumn' ? 'broadleaf-b' : 'broadleaf-a'; dh = h * 0.8; }
+      else { cell = (h >= 165 ? 'spruce-tall-' : 'spruce-short-') + 'abcd'[pick % 4]; dh = h; }
+      const box = spriteBox(cell, dh);
+      groveItems.push({x, y: yy, sh: h * 0.3, cell, season, box,
+        kind: cell.startsWith('broadleaf') ? 'broadleaf' : 'spruce'});
+    } else {
+      groveItems.push({x, y: yy, svg: isPine ? pineSVG(h, tone, dark) : broadleafSVG(h * 0.8, leafTone), sh: h * 0.3});
+    }
     placed++;
   }
   for (let i = 0; i < Math.round(LEN / 900); i++){
@@ -720,7 +787,14 @@
     const off = (rnd() > 0.5 ? 1 : -1) * (430 + rnd() * 520);
     const x = clamp(p.x + off, -950, W + 950), yy = p.y + (rnd() - 0.5) * 150;
     if (eventClear(x, yy) || Math.abs(yy - creekY) < 140) continue;
-    groveItems.push({x, y: yy, svg: boulderSVG(70 + rnd() * 90), sh: 44});
+    const bw = 70 + rnd() * 90;
+    if (GROVE_SPRITES){
+      const cell = 'boulder-' + 'abcd'[Math.floor(bw * 1000) % 4];
+      const c = ATLAS_CELLS[cell];
+      groveItems.push({x, y: yy, sh: 44, cell, kind: 'boulder', box: {w: bw, h: c.h * bw / c.w}});
+    } else {
+      groveItems.push({x, y: yy, svg: boulderSVG(bw), sh: 44});
+    }
   }
   const groves = {};
   groveItems.forEach(it => {
@@ -739,7 +813,11 @@
     el.style.left = baseX + 'px'; el.style.top = baseY + 'px';
     el.innerHTML = items
       .sort((a, b) => a.y - b.y)   // farther trees paint first
-      .map(i => `<div class="gi" style="left:${(i.x - baseX).toFixed(0)}px; bottom:${((baseY - i.y) * GI_F).toFixed(0)}px;">${i.svg}</div>`)
+      .map(i => i.cell
+        ? `<div class="gi sp ${i.kind}" data-cell="${i.cell}"${i.season ? ` data-season="${i.season}"` : ''} ` +
+          `style="left:${(i.x - baseX).toFixed(0)}px; bottom:${((baseY - i.y) * GI_F).toFixed(0)}px; ` +
+          `width:${i.box.w.toFixed(0)}px; height:${i.box.h.toFixed(0)}px;">${spriteMarkup(i.cell, i.box.w, i.box.h)}</div>`
+        : `<div class="gi" style="left:${(i.x - baseX).toFixed(0)}px; bottom:${((baseY - i.y) * GI_F).toFixed(0)}px;">${i.svg}</div>`)
       .join('');
     map.appendChild(el);
     props.push({el, y: baseY, yMin, yMax: baseY});
@@ -783,7 +861,7 @@
           <rect x="-3" y="-21" width="6" height="9" rx="2" fill="#6E8043"/></g>`;
         bands[bandFor(yy)].detail.appendChild(g);
       } else if (kind === 'lights'){
-        prop(x, yy, pineSVG(150, '#4A5B48', '#3C4B3A', true), {shadow: 42});
+        prop(x, yy, litTreeMarkup(150), {shadow: 42});
       } else {
         const g = document.createElementNS(NS, 'g');
         g.innerHTML = `<g transform="translate(${x},${yy})" fill="#D97795">
@@ -853,7 +931,7 @@
     const p = atDist(squirrelD);
     const x = p.x + (p.x > CX ? -1 : 1) * 420;
     const el = prop(x, p.y, `
-      ${pineSVG(170, '#4F7348', '#3F5E3B')}
+      ${GROVE_SPRITES ? spriteBoxMarkup('spruce-tall-b', 170, 'spruce') : pineSVG(170, '#4F7348', '#3F5E3B')}
       <svg class="sq" width="30" height="26" viewBox="0 0 30 26"
            style="position:absolute; left:50%; bottom:0; margin-left:-6px;">
         <path d="M20 22 Q30 16 26 6 Q22 -2 16 6 Q20 14 14 20 Z" fill="#8A5A34"/>
