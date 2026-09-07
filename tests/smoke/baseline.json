@@ -4,7 +4,7 @@
     "aliveSurfacesMax": 50,
     "missingOverlaysMax": 0,
     "attachedOverlaysMax": 6,
-    "updateMsAvg": 0.379556897663758,
+    "updateMsAvg": 0.33980582500159934,
     "updateMsWorst": 0.800000011920929,
     "longTasks": 0
   },
@@ -13,8 +13,8 @@
     "aliveSurfacesMax": 43,
     "missingOverlaysMax": 0,
     "attachedOverlaysMax": 6,
-    "updateMsAvg": 0.3199767018378163,
-    "updateMsWorst": 1.300000011920929,
+    "updateMsAvg": 0.3406868446900209,
+    "updateMsWorst": 1,
     "longTasks": 0
   },
   "reduced": {
@@ -22,8 +22,8 @@
     "aliveSurfacesMax": 43,
     "missingOverlaysMax": 0,
     "attachedOverlaysMax": 6,
-    "updateMsAvg": 0.7249999940395355,
-    "updateMsWorst": 1.5,
+    "updateMsAvg": 0.6249999850988388,
+    "updateMsWorst": 0.8999999761581421,
     "longTasks": 0
   }
 }
