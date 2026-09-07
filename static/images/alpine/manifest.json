@@ -23,7 +23,7 @@
       "seamless": true,
       "where": "Tiled over the season gradient inside every band SVG (spring, summer and autumn bands); mixed with overlay-b and overlay-c band to band so the repeat is not visible (R4).",
       "palette": "season-neutral",
-      "hash": "2684df37f14a2ff9",
+      "hash": "c97ff9de817ac6e5",
       "cells": null
     },
     {
@@ -34,7 +34,7 @@
       "seamless": true,
       "where": "Same use as ground-overlay-a; a second brush pass with different stroke placement so adjacent bands don't visibly repeat.",
       "palette": "season-neutral",
-      "hash": "f0febd3fb210dd1e",
+      "hash": "b021dfe12c3a1381",
       "cells": null
     },
     {
@@ -45,7 +45,7 @@
       "seamless": true,
       "where": "Same use as ground-overlay-a/b; a third brush pass completing the non-winter rotation.",
       "palette": "season-neutral",
-      "hash": "c0031699f0b10d5a",
+      "hash": "d485da95f7957ea8",
       "cells": null
     },
     {
@@ -56,7 +56,7 @@
       "seamless": true,
       "where": "Replaces the neutral overlay rotation on any band whose midpoint month is winter (KTD1). Carries its own drift and bare-grass paint rather than relying on the gradient underneath.",
       "palette": "winter",
-      "hash": "2cbc4cc3192fa95e",
+      "hash": "97d55677beb9cb44",
       "cells": null
     },
     {
@@ -67,7 +67,7 @@
       "seamless": true,
       "where": "Tiled along the worn dirt trail path drawn into the ground band.",
       "palette": "rock-neutral",
-      "hash": "28bbe6a4eb3af2ef",
+      "hash": "aea0b3aa2fb3cfa1",
       "cells": null
     },
     {
@@ -78,7 +78,7 @@
       "seamless": true,
       "where": "Tiled inside the creek and pond shapes painted into the ground band.",
       "palette": "glacial-teal",
-      "hash": "03726f61b7b7bc41",
+      "hash": "422a136a5fa016dd",
       "cells": null
     },
     {
@@ -89,7 +89,7 @@
       "seamless": true,
       "where": "Tiled along the shallow edge between water-tile and the surrounding ground overlay, so the bank reads as painted-in rather than a stroke laid on top (R12).",
       "palette": "rock-neutral",
-      "hash": "1f4e1f0c600886be",
+      "hash": "da81bbacfafdb50f",
       "cells": null
     },
     {
@@ -100,7 +100,7 @@
       "seamless": false,
       "where": "Cells are drawn by the existing .gi children of .grove billboards, replacing the procedural pine/broadleaf/boulder SVGs. Snow-capped spruce cells are used only when a grove's season is winter; all other spruce, broadleaf, boulder and ground-detail cells are shared across spring, summer and autumn.",
       "palette": "evergreen-neutral (snow-* cells: winter)",
-      "hash": "6b1b6940793b6bdb",
+      "hash": "ab8814ef530f8091",
       "notes": "Every cell's opaque paint must stay inside the cell minus the 2 px padding on each edge (cell_padding_px) so atlas sampling never bleeds into a neighbor. Tallest cells (spruce-tall-*) are 230 px, the plan's hard ceiling.",
       "cells": [
         {"name": "spruce-tall-a", "x": 0, "y": 0, "w": 110, "h": 230},
@@ -134,7 +134,7 @@
       "seamless": false,
       "where": "Small billboards near the trail on desktop, swaying gently (R16); shown static on the lite tier and under reduced motion.",
       "palette": "season-neutral",
-      "hash": "4aff92dc8626e9be",
+      "hash": "d7a9f01df626f734",
       "notes": "Cells share the 2 px padding convention (cell_padding_px).",
       "cells": [
         {"name": "grass-clump-a", "x": 0, "y": 0, "w": 64, "h": 64},
@@ -151,7 +151,7 @@
       "seamless": true,
       "where": "Clipped to the creek/pond shape and moved with a transform for flowing motion on desktop (R13); a static single frame remains visible on the lite tier and under reduced motion.",
       "palette": "glacial-teal",
-      "hash": "f754ce0592eff0dc",
+      "hash": "c7f870118e707fe7",
       "cells": null
     },
     {
@@ -162,7 +162,7 @@
       "seamless": false,
       "where": "Left valley-wall flank of the painted mountain backdrop, a sibling of .zoom behind the world, drifting vertically at a fraction of ground speed (KTD2).",
       "palette": "season-neutral",
-      "hash": "7c242e8a7a231289",
+      "hash": "28575118bc882ce7",
       "cells": null
     },
     {
@@ -173,7 +173,7 @@
       "seamless": false,
       "where": "Right valley-wall flank, mirrored placement and behavior of backdrop-left-flank.",
       "palette": "season-neutral",
-      "hash": "c39d8ccb444e5d21",
+      "hash": "e8995f2997225341",
       "cells": null
     },
     {
@@ -184,7 +184,7 @@
       "seamless": false,
       "where": "Centre range replacing today's ridge backdrop; wide enough to cover the horizon behind the world across the trail's horizontal drift (R11).",
       "palette": "season-neutral",
-      "hash": "fe47dfa78455772b",
+      "hash": "4a29238cc0a642e1",
       "cells": null
     },
     {
@@ -195,7 +195,7 @@
       "seamless": false,
       "where": "Extra set dressing painted into the ground near the trailhead home, one of the five richest-painted push-in spots (R21). Camera behavior there is unchanged (R22).",
       "palette": "season-neutral",
-      "hash": "9fea5166d95a210b",
+      "hash": "0769887417349371",
       "cells": null
     },
     {
@@ -206,7 +206,7 @@
       "seamless": false,
       "where": "Extra set dressing at the creek bridge push-in spot.",
       "palette": "season-neutral",
-      "hash": "2b14c69a8042681e",
+      "hash": "f9c945ec73ff631b",
       "cells": null
     },
     {
@@ -217,7 +217,7 @@
       "seamless": false,
       "where": "Extra set dressing inside the one dense spruce grove chosen as a push-in spot.",
       "palette": "evergreen-neutral",
-      "hash": "e8f6305dcc235071",
+      "hash": "09de853aa7ef967b",
       "cells": null
     },
     {
@@ -228,7 +228,7 @@
       "seamless": false,
       "where": "Extra set dressing around Belle's lantern push-in spot.",
       "palette": "season-neutral",
-      "hash": "3836202a90701bc4",
+      "hash": "b480994b0f6bda58",
       "cells": null
     },
     {
@@ -239,7 +239,7 @@
       "seamless": false,
       "where": "Extra set dressing at the trail's end push-in spot.",
       "palette": "season-neutral",
-      "hash": "4cbde4068b7a0b04",
+      "hash": "7674286c8e8f88c2",
       "cells": null
     }
   ]
