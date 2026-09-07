@@ -127,6 +127,8 @@
   const GROUND_INK = params.get('ink') !== 'off';        // ?ink=off   no brush-grain overlay rect
   const GROUND_DIRT = params.get('dirt') !== 'off';      // ?dirt=off  plain trail stroke, no dirt pattern
   const GROUND_SPRITES = params.get('sprites') !== 'off'; // ?sprites=off no atlas detail sprites
+  const GROUND_WATER = params.get('water') !== 'off';     // ?water=off plain teal strokes, no water/bank tiles (U6)
+  const GROUND_MOTION = params.get('motion') !== 'off';   // ?motion=off no grass sway / creek flow elements (U8)
   const LOOKAHEAD_BANDS = params.has('look') ? Math.max(0, Number(params.get('look')) || 0) : 1;
   const TILE = [256, 512, 1024].includes(Number(params.get('tile'))) ? Number(params.get('tile')) : 256;
   const ART_TILE = 1024;  // world px per overlay image; the art is 1024 px square
@@ -136,6 +138,16 @@
   ((ATLAS && ATLAS.cells) || []).forEach(c => { ATLAS_CELLS[c.name] = c; });
   const ATLAS_SIZE = ATLAS ? ATLAS.size : [530, 980];
   const DIRT_URL = assetUrl('dirt-trail-tile.webp');
+  const WATER_URL = assetUrl('water-tile.webp'), BANK_URL = assetUrl('bank-tile.webp');
+  // U6: the creek and pond are painted only when both tiles exist; flat mode
+  // and ?water=off keep the plain strokes. The tiles are stroke paint
+  // servers, so like the dirt trail they are the sanctioned small-tile
+  // <pattern> exception (256 px): two patterns per band that carries water,
+  // three bands on the fixture (the pond straddles a seam). Measured on the
+  // WebKit probe at iPhone 13 scale: about 30 MB of GPU memory, painted 202
+  // vs 171 MB with ?water=off, against a 116 MB flat build.
+  const PAINT_WATER = !GROUND_FLAT && GROUND_WATER && !!WATER_URL && !!BANK_URL;
+  const WATER_TILE = 256;
   const SNOW_URL = assetUrl('ground-overlay-winter.webp');
   const ATLAS_URL = assetUrl('tree-rock-atlas.webp');
   // Atlas load state, tracked once globally (one shared asset decoded once
@@ -434,11 +446,14 @@
   const pondG = gapList.length > 1 ? gapList[1] : null;
 
   const creekGroup = document.createElementNS(NS, 'g');
+  // One source for the creek's quadratic chain: the painted path and the U8
+  // flow clip both read it, so they can never disagree.
+  const creekCtrlY = x => creekY + ((x / 300) % 2 ? 74 : -12);
   {
     const cx = trailXAtY(creekY);
     let cd = `M -1100 ${creekY + 40}`;
     for (let x = -1000; x <= W + 1100; x += 300){
-      cd += ` Q ${x - 150} ${creekY + ((x/300) % 2 ? 74 : -12)}, ${x} ${creekY + 30}`;
+      cd += ` Q ${x - 150} ${creekCtrlY(x)}, ${x} ${creekY + 30}`;
     }
     creekGroup.innerHTML =
       `<path d="${cd}" fill="none" stroke="#7FA8B5" stroke-width="64" stroke-linecap="round" opacity=".85"/>
@@ -451,6 +466,32 @@
          <rect x="-101" y="-64" width="202" height="11" rx="5" fill="#7C6540"/>
          <rect x="-101" y="53" width="202" height="11" rx="5" fill="#7C6540"/>
        </g>`;
+    // U6 painted creek, built per band because each band's <svg> needs its
+    // own pattern ids. Paint order: a flat bank colour (the fallback if the
+    // bank tile never loads), the bank tile, an ink rim, a flat teal (the
+    // fallback for the water tile), the water tile, then the bridge with an
+    // ink outline. No shimmer dash: nothing inside a band SVG animates; U8
+    // supplies motion outside the band. Geometry (cd, cx) is unchanged.
+    creekGroup.paintedMarkup = (bi) =>
+      waterDefs('cw' + bi, 'cb' + bi) +
+      `<path d="${cd}" fill="none" stroke="#8F8B7A" stroke-width="112" stroke-linecap="round" stroke-opacity=".5"/>
+       <path d="${cd}" fill="none" stroke="url(#cb${bi})" stroke-width="112" stroke-linecap="round"/>
+       <path d="${cd}" fill="none" stroke="${INK_COLOR}" stroke-width="72" stroke-linecap="round" stroke-opacity=".8"/>
+       <path d="${cd}" fill="none" stroke="#2E7A80" stroke-width="64" stroke-linecap="round"/>
+       <path d="${cd}" fill="none" stroke="url(#cw${bi})" stroke-width="64" stroke-linecap="round"/>
+       <g transform="translate(${cx}, ${creekY + 30})" stroke="${INK_COLOR}" stroke-width="3">
+         <rect x="-95" y="-58" width="190" height="116" rx="10" fill="#9A7E52"/>
+         <g stroke="#7C6540" stroke-width="5">${[-38,-14,10,34].map(o => `<line x1="${o}" y1="-58" x2="${o}" y2="58"/>`).join('')}</g>
+         <rect x="-101" y="-64" width="202" height="11" rx="5" fill="#7C6540"/>
+         <rect x="-101" y="53" width="202" height="11" rx="5" fill="#7C6540"/>
+       </g>`;
+  }
+  // Two 256 px userSpaceOnUse patterns (water, bank) with the tile image
+  // attached from the start: one decoded bitmap each, shared by every band.
+  function waterDefs(waterId, bankId){
+    const pat = (id, url) => `<pattern id="${id}" patternUnits="userSpaceOnUse" x="0" y="0" width="${WATER_TILE}" height="${WATER_TILE}">` +
+      `<image width="${WATER_TILE}" height="${WATER_TILE}" href="${url}"/></pattern>`;
+    return `<defs>${pat(waterId, WATER_URL)}${pat(bankId, BANK_URL)}</defs>`;
   }
 
   let pondHTML = '', pondPos = null;
@@ -469,8 +510,24 @@
         <ellipse cx="90" cy="-40" rx="16" ry="9" fill="#6E8F4E"/>
       </g>`;
   }
+  // U6 painted pond: the same three layers on the ellipse (bank tile, ink
+  // rim, water tile), each over its flat fallback colour; lily pads stay.
+  const pondPainted = (bi) => !pondPos ? '' :
+    waterDefs('pw' + bi, 'pb' + bi) +
+    `<g transform="translate(${pondPos.x},${pondPos.y})">
+      <ellipse cx="0" cy="0" rx="252" ry="150" fill="#8F8B7A" fill-opacity=".5"/>
+      <ellipse cx="0" cy="0" rx="252" ry="150" fill="url(#pb${bi})"/>
+      <ellipse cx="0" cy="0" rx="234" ry="134" fill="${INK_COLOR}" fill-opacity=".8"/>
+      <ellipse cx="0" cy="0" rx="228" ry="128" fill="#2E7A80"/>
+      <ellipse cx="0" cy="0" rx="228" ry="128" fill="url(#pw${bi})"/>
+      <ellipse cx="-60" cy="-24" rx="26" ry="14" fill="#6E8F4E" stroke="${INK_COLOR}" stroke-width="2"/>
+      <ellipse cx="48" cy="30" rx="20" ry="11" fill="#7C9E58" stroke="${INK_COLOR}" stroke-width="2"/>
+      <ellipse cx="90" cy="-40" rx="16" ry="9" fill="#6E8F4E" stroke="${INK_COLOR}" stroke-width="2"/>
+    </g>`;
+  // Debug hook for the smoke's U6 scenario: where the water is.
+  window.__journeyWater = { creekY, pond: pondPos, painted: PAINT_WATER };
 
-  bands.forEach(b => {
+  bands.forEach((b, bandIdx) => {
     if (GROUND_FLAT){
       // ?ground=flat (or an empty manifest) is a faithful rollback to
       // today's look: the dirt pattern never gets an href, so painting the
@@ -510,12 +567,14 @@
     }
     if (creekY + 160 > b.y0 && creekY - 160 < b.y0 + BANDH){
       const g = document.createElementNS(NS, 'g');
-      g.innerHTML = creekGroup.innerHTML;
+      g.setAttribute('class', 'creek');
+      g.innerHTML = PAINT_WATER ? creekGroup.paintedMarkup(bandIdx) : creekGroup.innerHTML;
       b.svg.appendChild(g);
     }
     if (pondHTML && pondPos && pondPos.y + 170 > b.y0 && pondPos.y - 170 < b.y0 + BANDH){
       const g = document.createElementNS(NS, 'g');
-      g.innerHTML = pondHTML;
+      g.setAttribute('class', 'pond');
+      g.innerHTML = PAINT_WATER ? pondPainted(bandIdx) : pondHTML;
       b.svg.appendChild(g);
     }
     const dotsPath = document.createElementNS(NS, 'path');
@@ -1425,6 +1484,104 @@
     if (document.hidden) audio.ctx.suspend();
     else if (soundBtn.classList.contains('playing')) audio.ctx.resume();
   });
+
+  /* ---------- U8: grass sway and creek flow, desktop only ----------
+     KTD5: motion is a few small compositor-only elements, created only when
+     the tier is not lite and the user has not asked for reduced motion (the
+     CSS reduced-motion block also silences them, belt and braces), never
+     inside a band SVG, never animating background-position. Sway clumps are
+     billboard props (a .prop that counter-tilts like every other prop)
+     whose inner element rotates a few degrees about its base; flow is one
+     flat element per water body lying in the map plane, clipped to the
+     water shape, whose inner strip of highlight tiles translates along the
+     water. Both are registered in props so the existing cull hides them
+     off camera. Placed after every other rnd() consumer so the seeded
+     layout is identical with motion on or off. */
+  const GRASS = ART['grass-clumps.webp'];
+  const GRASS_URL = assetUrl('grass-clumps.webp'), HIGHLIGHT_URL = assetUrl('water-highlight.webp');
+  const GRASS_CELLS = ((GRASS && GRASS.cells) || []);
+  const MOTION = !LITE && !reduced && !GROUND_FLAT && GROUND_MOTION && !!GRASS_URL && !!HIGHLIGHT_URL && GRASS_CELLS.length >= 4;
+  const swayPlaced = [];
+  // A clump's own keep-out: a 128 x 64 billboard only has to stay out from
+  // under a camp's 270 px frame and its post, not the 450 x 460 px zone the
+  // trees need (their cluster bucket can anchor nearer than the event). A
+  // clump farther away than the card is hidden behind it, so the far side
+  // is short; the near side covers the card's projected foot.
+  const grassClear = (x, y) => pts.some(p =>
+    Math.abs(p.x - x) < 200 && (y < p.y ? p.y - y < 160 : y - p.y < 120));
+  if (MOTION){
+    const gw = GRASS.size[0], gh = GRASS.size[1];
+    const clumpMarkup = () => {
+      const n = 3 + Math.floor(rnd() * 3);   // 3..5 sprites
+      let inner = '';
+      for (let k = 0; k < n; k++){
+        const c = GRASS_CELLS[Math.floor(rnd() * GRASS_CELLS.length)];
+        const h = 40 + rnd() * 24, w = h * c.w / c.h;
+        const x = 8 + k * (104 / n) + rnd() * 10;
+        inner += `<svg x="${x.toFixed(0)}" y="${(64 - h).toFixed(0)}" width="${w.toFixed(0)}" height="${h.toFixed(0)}" viewBox="${c.x} ${c.y} ${c.w} ${c.h}">` +
+          `<image width="${gw}" height="${gh}" href="${GRASS_URL}"/></svg>`;
+      }
+      return `<div class="sway-in" style="--dur:${(2.6 + rnd() * 1.8).toFixed(2)}s; --delay:-${(rnd() * 3).toFixed(2)}s; --amp:${(1.5 + rnd() * 1.5).toFixed(1)}deg;">` +
+        `<svg width="128" height="64" viewBox="0 0 128 64">${inner}</svg></div>`;
+    };
+    bands.forEach(b => {
+      const want = 2 + Math.floor(rnd() * 2);   // 2..3 clumps per band
+      // Most trail-side spots sit inside a camp's keep-out (the camps line
+      // the trail), so this needs many more tries than the tree loop, and
+      // the offset range reaches past the keep-out's 450 px half-width so
+      // the meadow beside a camp can still sway.
+      let placed = 0, guard = 0;
+      while (placed < want && guard++ < 48){
+        const yy = b.y0 + 80 + rnd() * (BANDH - 160);
+        if (yy < 120 || yy > LEN - 120) continue;
+        const tx = trailXAtY(yy);
+        const x = tx + (rnd() > 0.5 ? 1 : -1) * (95 + rnd() * 300);
+        if (grassClear(x, yy)) continue;
+        if (Math.abs(yy - creekY) < 150) continue;
+        if (pondPos && Math.abs(pondPos.x - x) < 320 && Math.abs(pondPos.y - yy) < 230) continue;
+        const el = prop(x, yy, clumpMarkup(), {cls: 'sway'});
+        swayPlaced.push({x, y: yy, el});
+        placed++;
+      }
+    });
+    // Flow: the creek's water shape as a polygon (the same quadratic chain
+    // as the creek path, offset +-30 px, inside the 64 px water stroke).
+    const flowBody = (left, top, width, height, clip) => {
+      const el = document.createElement('div');
+      el.className = 'prop flow';
+      el.style.cssText = `left:${left}px; top:${top}px; width:${width}px; height:${height}px; clip-path:${clip};`;
+      el.innerHTML = `<div class="flow-in" style="background-image:url('${HIGHLIGHT_URL}')"></div>`;
+      map.appendChild(el);
+      return el;
+    };
+    {
+      const top = creekY - 60, left = -1100, width = W + 2200, height = 140;
+      const up = [], down = [];
+      // The bridge deck (cx +- 101 world px) is cut out of the clip by
+      // collapsing the band to zero height across it, so highlights never
+      // paint over the deck or the paw prints crossing it.
+      const bx = trailXAtY(creekY);
+      let px = -1100, py = creekY + 40;
+      for (let x = -1000; x <= W + 1100; x += 300){
+        const cx = x - 150, cy = creekCtrlY(x), ex = x, ey = creekY + 30;
+        for (let t = 0.1; t <= 1.0001; t += 0.1){
+          const mx = (1 - t) * (1 - t) * px + 2 * (1 - t) * t * cx + t * t * ex;
+          const my = (1 - t) * (1 - t) * py + 2 * (1 - t) * t * cy + t * t * ey;
+          const onBridge = Math.abs(mx - bx) < 101;
+          up.push(`${(mx - left).toFixed(0)}px ${(my + (onBridge ? 30 : -30) - top).toFixed(0)}px`);
+          down.unshift(`${(mx - left).toFixed(0)}px ${(my + 30 - top).toFixed(0)}px`);
+        }
+        px = ex; py = ey;
+      }
+      const el = flowBody(left, top, width, height, `polygon(${up.concat(down).join(', ')})`);
+      props.push({el, y: creekY, yMin: creekY - 60, yMax: creekY + 60});
+    }
+    if (pondPos){
+      const el = flowBody(pondPos.x - 230, pondPos.y - 130, 460, 260, 'ellipse(226px 126px at 50% 50%)');
+      props.push({el, y: pondPos.y, yMin: pondPos.y - 130, yMax: pondPos.y + 130});
+    }
+  }
+  window.__journeyMotion = { on: MOTION, sway: swayPlaced.map(s => ({x: s.x, y: s.y})) };
 
   /* ---------- camera ---------- */
   const intro = document.getElementById('intro');

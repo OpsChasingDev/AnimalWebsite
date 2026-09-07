@@ -68,6 +68,11 @@ pets/
   style sheet, palettes and full asset list. Append `?ground=flat` to the
   trail URL to roll the ground back to the pre-art flat gradient look — the
   phone-budget rollback if the painted overlays ever need to come off.
+  Finer levers for diagnosis on a phone: `?snow=off`, `?ink=off`,
+  `?dirt=off`, `?sprites=off` (vector trees instead of atlas sprites),
+  `?water=off` (plain teal creek and pond instead of the water and bank
+  tiles), `?motion=off` (no grass sway or creek flow elements), `?look=0`
+  (no lookahead band) and `?tile=512` (dirt pattern tile).
 
 ## Development
 
