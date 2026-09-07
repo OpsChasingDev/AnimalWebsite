@@ -39,7 +39,7 @@ body.t-dusk .ridge{filter:brightness(.85) sepia(.25);}
 @keyframes sway{from{transform:rotate(calc(var(--amp,2deg) * -1))}to{transform:rotate(var(--amp,2deg))}}
 .prop.flow{transform:none; overflow:hidden;}
 .flow-in{position:absolute; left:0; top:0; height:100%; width:calc(100% + 512px); background-repeat:repeat; background-size:512px 64px;
-  will-change:transform; animation:flow 9s linear infinite;}
+  will-change:transform; animation:flow var(--flow-dur,9s) linear infinite;}
 @keyframes flow{from{transform:translateX(-512px)}to{transform:translateX(0)}}
 /* water highlights inside the band SVGs are static: animating them repaints the whole ground SVG */
 

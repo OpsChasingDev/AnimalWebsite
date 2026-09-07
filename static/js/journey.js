@@ -442,8 +442,27 @@
   /* creek + pond in the two widest quiet stretches */
   const gapList = pts.slice(1).map((p, i) => ({y0: pts[i].y, y1: p.y, size: pts[i].y - p.y}))
                      .sort((a, b) => b.size - a.size);
-  const creekY = gapList.length ? (gapList[0].y0 + gapList[0].y1) / 2 : LEN / 2;
-  const pondG = gapList.length > 1 ? gapList[1] : null;
+  // The creek wants a quiet stretch, but every billboard stands up about
+  // 420 world px of the ground behind it, wider than most stretches, so a
+  // crossing centred in a gap lands behind the photo at the gap's near end.
+  // The trail winds, though: pick the widest gap and crossing where the
+  // bridge sits more than a billboard's half-width to the side of that
+  // event (or fully beyond its shadow), so the bridge stays clickable-clear.
+  const bridgeClear = (cy, near) => !near ||
+    Math.abs(trailXAtY(cy) - near.x) > 330 || cy + 94 < near.y - 420;
+  let creekY = null, creekGap = null;
+  for (const g of gapList.slice(0, 6)){
+    if (g.size < 300) continue;
+    const near = pts.find(p => p.y === g.y0);
+    for (const f of [0.5, 0.35, 0.65, 0.2, 0.8]){
+      const cy = g.y0 - g.size * f;
+      if (cy < g.y1 + 150 || cy > g.y0 - 150) continue;
+      if (bridgeClear(cy, near)){ creekY = cy; creekGap = g; break; }
+    }
+    if (creekY !== null) break;
+  }
+  if (creekY === null){ creekGap = gapList[0] || null; creekY = creekGap ? (creekGap.y0 + creekGap.y1) / 2 : LEN / 2; }
+  const pondG = gapList.find(g => g !== creekGap) || null;
 
   const creekGroup = document.createElementNS(NS, 'g');
   // One source for the creek's quadratic chain: the painted path and the U8
@@ -525,7 +544,7 @@
       <ellipse cx="90" cy="-40" rx="16" ry="9" fill="#6E8F4E" stroke="${INK_COLOR}" stroke-width="2"/>
     </g>`;
   // Debug hook for the smoke's U6 scenario: where the water is.
-  window.__journeyWater = { creekY, pond: pondPos, painted: PAINT_WATER };
+  window.__journeyWater = { creekY, bridgeX: trailXAtY(creekY), pond: pondPos, painted: PAINT_WATER };
 
   bands.forEach((b, bandIdx) => {
     if (GROUND_FLAT){
@@ -1521,7 +1540,7 @@
         inner += `<svg x="${x.toFixed(0)}" y="${(64 - h).toFixed(0)}" width="${w.toFixed(0)}" height="${h.toFixed(0)}" viewBox="${c.x} ${c.y} ${c.w} ${c.h}">` +
           `<image width="${gw}" height="${gh}" href="${GRASS_URL}"/></svg>`;
       }
-      return `<div class="sway-in" style="--dur:${(2.6 + rnd() * 1.8).toFixed(2)}s; --delay:-${(rnd() * 3).toFixed(2)}s; --amp:${(1.5 + rnd() * 1.5).toFixed(1)}deg;">` +
+      return `<div class="sway-in" style="--dur:${(2.4 + rnd() * 1.6).toFixed(2)}s; --delay:-${(rnd() * 3).toFixed(2)}s; --amp:${(2.6 + rnd() * 2).toFixed(1)}deg;">` +
         `<svg width="128" height="64" viewBox="0 0 128 64">${inner}</svg></div>`;
     };
     bands.forEach(b => {
@@ -1546,10 +1565,10 @@
     });
     // Flow: the creek's water shape as a polygon (the same quadratic chain
     // as the creek path, offset +-30 px, inside the 64 px water stroke).
-    const flowBody = (left, top, width, height, clip) => {
+    const flowBody = (left, top, width, height, clip, dur = '9s') => {
       const el = document.createElement('div');
       el.className = 'prop flow';
-      el.style.cssText = `left:${left}px; top:${top}px; width:${width}px; height:${height}px; clip-path:${clip};`;
+      el.style.cssText = `left:${left}px; top:${top}px; width:${width}px; height:${height}px; clip-path:${clip}; --flow-dur:${dur};`;
       el.innerHTML = `<div class="flow-in" style="background-image:url('${HIGHLIGHT_URL}')"></div>`;
       map.appendChild(el);
       return el;
@@ -1577,7 +1596,8 @@
       props.push({el, y: creekY, yMin: creekY - 60, yMax: creekY + 60});
     }
     if (pondPos){
-      const el = flowBody(pondPos.x - 230, pondPos.y - 130, 460, 260, 'ellipse(226px 126px at 50% 50%)');
+      // Still water: the pond's highlights crawl at a fifth of the creek's pace.
+      const el = flowBody(pondPos.x - 230, pondPos.y - 130, 460, 260, 'ellipse(226px 126px at 50% 50%)', '45s');
       props.push({el, y: pondPos.y, yMin: pondPos.y - 130, yMax: pondPos.y + 130});
     }
   }
