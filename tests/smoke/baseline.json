@@ -1,29 +1,29 @@
 {
   "desktop": {
     "aliveBandsMax": 4,
-    "aliveSurfacesMax": 48,
+    "aliveSurfacesMax": 51,
     "missingOverlaysMax": 0,
     "attachedOverlaysMax": 6,
-    "updateMsAvg": 0.34858237486689486,
-    "updateMsWorst": 0.800000011920929,
+    "updateMsAvg": 0.3651612908609452,
+    "updateMsWorst": 0.7000000476837158,
     "longTasks": 0
   },
   "lite": {
     "aliveBandsMax": 4,
-    "aliveSurfacesMax": 41,
+    "aliveSurfacesMax": 42,
     "missingOverlaysMax": 0,
     "attachedOverlaysMax": 6,
-    "updateMsAvg": 0.3441792788966293,
-    "updateMsWorst": 1.100000023841858,
+    "updateMsAvg": 0.3228172276156051,
+    "updateMsWorst": 0.8999999761581421,
     "longTasks": 0
   },
   "reduced": {
     "aliveBandsMax": 4,
-    "aliveSurfacesMax": 40,
+    "aliveSurfacesMax": 42,
     "missingOverlaysMax": 0,
     "attachedOverlaysMax": 6,
-    "updateMsAvg": 0.875,
-    "updateMsWorst": 1.800000011920929,
+    "updateMsAvg": 0.625,
+    "updateMsWorst": 1.100000023841858,
     "longTasks": 0
   }
 }
