@@ -525,7 +525,29 @@
   }
   if (best){ creekY = best.cy; creekGap = best.g; }
   if (creekY === null){ creekGap = gapList[0] || null; creekY = creekGap ? (creekGap.y0 + creekGap.y1) / 2 : LEN / 2; }
-  const pondG = gapList.find(g => g !== creekGap && critterFree((g.y0 + g.y1) / 2, 420)) || null;
+  // The pond wants open meadow beside the trail where no billboard stands
+  // on it or in front of it: a card at (p.x, p.y) covers its own base and
+  // the ground behind it (smaller y) for about 420 px, across its own half
+  // width plus the pond's 252 px radius. Try each quiet stretch, both
+  // sides, and a few rows before settling for the widest stretch's centre.
+  const pondClear = (px, py) => !pts.some(p =>
+    Math.abs(p.x - px) < bbHalf(p) + 252 && py - 170 < p.y && p.y < py + 570);
+  let pondSpot = null;
+  for (const g of gapList.slice(0, 8)){
+    if (g === creekGap || !critterFree((g.y0 + g.y1) / 2, 420)) continue;
+    for (const f of [0.5, 0.35, 0.65]){
+      const py = g.y0 - g.size * f;
+      const tx = trailXAtY(py);
+      for (const side of (tx > CX ? [-1, 1] : [1, -1])){
+        const px = clamp(tx + side * 640, 260, W - 260);
+        if (Math.abs(px - tx) < 420) continue;   // clamped back onto the trail
+        if (pondClear(px, py)){ pondSpot = {x: px, y: py, g}; break; }
+      }
+      if (pondSpot) break;
+    }
+    if (pondSpot) break;
+  }
+  const pondG = pondSpot ? pondSpot.g : (gapList.find(g => g !== creekGap && critterFree((g.y0 + g.y1) / 2, 420)) || null);
 
   const creekGroup = document.createElementNS(NS, 'g');
   // One source for the creek's quadratic chain: the painted path and the U8
@@ -591,8 +613,8 @@
 
   let pondHTML = '', pondPos = null;
   if (pondG){
-    const py = (pondG.y0 + pondG.y1) / 2;
-    const px = clamp(trailXAtY(py) + (trailXAtY(py) > CX ? -640 : 640), 260, W - 260);
+    const py = pondSpot ? pondSpot.y : (pondG.y0 + pondG.y1) / 2;
+    const px = pondSpot ? pondSpot.x : clamp(trailXAtY(py) + (trailXAtY(py) > CX ? -640 : 640), 260, W - 260);
     pondPos = {x: px, y: py};
     pondHTML =
       `<g transform="translate(${px},${py})">

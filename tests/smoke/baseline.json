@@ -4,26 +4,26 @@
     "aliveSurfacesMax": 48,
     "missingOverlaysMax": 0,
     "attachedOverlaysMax": 6,
-    "updateMsAvg": 0.3403846152929159,
-    "updateMsWorst": 0.7000000476837158,
+    "updateMsAvg": 0.34858237486689486,
+    "updateMsWorst": 0.800000011920929,
     "longTasks": 0
   },
   "lite": {
     "aliveBandsMax": 4,
-    "aliveSurfacesMax": 42,
+    "aliveSurfacesMax": 41,
     "missingOverlaysMax": 0,
     "attachedOverlaysMax": 6,
-    "updateMsAvg": 0.3437136209052711,
-    "updateMsWorst": 1,
+    "updateMsAvg": 0.3441792788966293,
+    "updateMsWorst": 1.100000023841858,
     "longTasks": 0
   },
   "reduced": {
     "aliveBandsMax": 4,
-    "aliveSurfacesMax": 41,
+    "aliveSurfacesMax": 40,
     "missingOverlaysMax": 0,
     "attachedOverlaysMax": 6,
-    "updateMsAvg": 0.925000011920929,
-    "updateMsWorst": 1.5999999642372131,
+    "updateMsAvg": 0.875,
+    "updateMsWorst": 1.800000011920929,
     "longTasks": 0
   }
 }
