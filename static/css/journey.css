@@ -13,10 +13,32 @@ body{background:var(--paper); color:var(--ink); font-family:var(--body); overflo
   background:linear-gradient(180deg,#D6E2DD 0%, #E4EAD8 24%, #EEF0E0 46%, #E4E8CF 100%);}
 body.t-dusk .scene{background:linear-gradient(180deg,#D9CBB8 0%, #E7DCC2 24%, #ECE9D2 46%, #E0E2C4 100%);}
 body.t-night .scene{background:linear-gradient(180deg,#232B3F 0%, #2E374D 26%, #3A4152 48%, #39414A 100%);}
-.ridge{position:absolute; left:0; right:0; top:0; height:30vh; pointer-events:none;}
-.ridge svg{position:absolute; left:-6%; width:112%; bottom:0; display:block;}
+/* U7 backdrop. --sky-h is the height of the sky above the ground's far
+   edge, --bd-spare the extra height the backdrop drifts down through as the
+   camera walks, --mist-top/--mist-h the haze strip over the far edge; all
+   three are projected from the camera numbers by journey.js (layoutBackdrop)
+   and recomputed on resize. */
+.ridge{position:absolute; left:0; right:0; top:0; height:var(--sky-h, 30vh); overflow:hidden; pointer-events:none;}
+#ridgeInner{position:absolute; left:0; right:0; top:calc(-1 * var(--bd-spare, 0px)); bottom:0; will-change:transform;}
+.ridge img.bd{position:absolute; display:block; user-select:none; -webkit-user-drag:none;}
+.ridge img.bd[hidden]{display:none;}   /* display:block above would otherwise beat the hidden attribute */
+/* 140% wide so the sideways drift in update() (up to 0.045 * camX * s,
+   about 20% of a narrow viewport) never exposes an edge. */
+.ridge .bd-centre{left:-20%; width:140%; top:0; height:100%; object-fit:cover; object-position:50% 38%;}
+.ridge .bd-left, .ridge .bd-right{top:-22%; height:130%; width:auto; max-width:40%; object-fit:cover; object-position:50% 40%;}
+/* The flanks are opaque rectangles with their own sky; a soft inner edge
+   (a 2D mask on a small fixed element, nothing inside the 3D tree) lets
+   them blend into the centre range's sky instead of showing a seam. */
+.ridge .bd-left{left:-1%; -webkit-mask-image:linear-gradient(90deg, #000 62%, transparent 100%); mask-image:linear-gradient(90deg, #000 62%, transparent 100%);}
+.ridge .bd-right{right:-1%; -webkit-mask-image:linear-gradient(270deg, #000 62%, transparent 100%); mask-image:linear-gradient(270deg, #000 62%, transparent 100%);}
+@media (max-width:640px){ .ridge .bd-left, .ridge .bd-right{max-width:34%;} }
 body.t-night .ridge{filter:brightness(.45) saturate(.6);}
 body.t-dusk .ridge{filter:brightness(.85) sepia(.25);}
+#mist{position:absolute; left:0; right:0; top:var(--mist-top, 0px); height:var(--mist-h, 0px); pointer-events:none;
+  --haze:206,220,222;
+  background:linear-gradient(180deg, rgba(var(--haze),0) 0%, rgba(var(--haze),.9) 28%, rgba(var(--haze),.9) 62%, rgba(var(--haze),0) 100%);}
+body.t-dusk #mist{--haze:224,206,182;}
+body.t-night #mist{--haze:50,58,80;}
 /* the trail's current point rides ~1/4 up from the bottom of the screen,
    so most of the view is the valley ahead rather than ground already walked */
 .zoom{position:absolute; left:50%; top:74%; transform-style:preserve-3d;}
