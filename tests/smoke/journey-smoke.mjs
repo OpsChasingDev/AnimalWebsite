@@ -55,7 +55,7 @@
  *     that's already running instead of spawning one (skips the AE2 pass,
  *     since that needs a second fixture the caller's server isn't using).
  */
-import { chromium, devices } from 'playwright';
+import { chromium, webkit, devices } from 'playwright';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -487,6 +487,10 @@ function evalProfile(stats, { isLite, isReduced, isFlat, baseline }) {
   // ground), so it keeps the pre-U8 desktop ceiling.
   // Two surfaces of headroom over the observed maxima: the seeded layout
   // reshuffles grove buckets by one when a landmark such as the creek moves.
+  // U7 (trail-end range) adds three painting planes, two tree-line
+  // billboards and, on desktop, three sway clumps, all alive only near the
+  // trail's end: observed maxima moved to desktop 51, lite 42, reduced 42,
+  // still inside these ceilings.
   const surfaceCeiling = isLite ? 46 : isReduced ? 44 : isFlat ? 45 : 59;
   add(`aliveSurfaces <= ${surfaceCeiling}`, stats.aliveSurfacesMax <= surfaceCeiling, `max ${stats.aliveSurfacesMax}`);
   // DOM cross-check (taken once, post-sweep): the aliveSurfaces stat above is
@@ -750,7 +754,8 @@ async function scenarioGroveSprites(browser, baseUrl) {
     await page.goto(`${baseUrl}/?t=day${query}`, { waitUntil: 'load' });
     await page.waitForTimeout(500);
     const r = await page.evaluate(() => {
-      const gis = Array.from(document.querySelectorAll('.grove .gi'));
+      // .grove.range is the U7 tree line, not a seeded grove: excluded here
+      const gis = Array.from(document.querySelectorAll('.grove:not(.range) .gi'));
       const sp = gis.filter(g => g.classList.contains('sp'));
       // offsetHeight is layout height, untouched by the grove's 3D transform
       const maxH = Math.max(0, ...gis.map(g => g.offsetHeight));
@@ -758,7 +763,7 @@ async function scenarioGroveSprites(browser, baseUrl) {
       const winter = sp.filter(g => g.dataset.season === 'winter');
       const notWinter = sp.filter(g => g.dataset.season && g.dataset.season !== 'winter');
       return {
-        groves: document.querySelectorAll('.grove').length,
+        groves: document.querySelectorAll('.grove:not(.range)').length,
         gis: gis.length, sprites: sp.length, maxH,
         propSprites: document.querySelectorAll('.prop .sp svg.sp-img').length,
         overflowHidden: sp.every(g => getComputedStyle(g.querySelector('svg')).overflow === 'hidden'),
@@ -775,6 +780,226 @@ async function scenarioGroveSprites(browser, baseUrl) {
   const painted = await read('');
   const vector = await read('&sprites=off');
   return { painted, vector };
+}
+
+/* ---------- U7 scenario: the trail-end range ---------- */
+// Plan docs/plans/2026-09-07-1320-feat-trail-end-mountain-range-plan.md,
+// AE1-AE7: three painting planes and two tree-line billboards stand at the
+// trail's end. At the end of the scroll the range fills the top of the frame
+// on desktop and phone with peaks and sky, the ground never paints over it,
+// the tree line covers its flat base, the visible path runs into the tree
+// line while the scroll height is unchanged, the lever and flat mode build
+// none of it, and a blocked painting hides itself. The end-position pixel
+// check also runs in WebKit (Safari's engine) when it is installed, since
+// the depth nudge that keeps the planes in front of the ground was tuned in
+// Chromium.
+const light = ([r, g, b]) => (r + g + b) / 3 > 170;
+async function rangeEndRead(page, shotFn) {
+  // The end of the scroll: the centre painting's box, the today card, the
+  // horizontal coverage of the painting's base row by the tree line (and any
+  // card standing in front), and pixel rows across the top strip and inside
+  // the painting. The inside row is compared against the same row rendered
+  // with ?range=off by the caller: the ground never paints over the range
+  // when the range changes what those pixels show.
+  const maxY = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
+  await page.evaluate(y => window.scrollTo(0, y), maxY);
+  await page.waitForTimeout(2500);
+  const geo = await page.evaluate(() => {
+    const img = document.querySelector('.prop.range img[src*="centre"]');
+    const r = img ? img.getBoundingClientRect() : null;
+    const today = document.querySelector('.bb-today');
+    let baseCoverage = null;
+    if (r) {
+      const baseY = r.bottom - 6;
+      const spans = [];
+      document.querySelectorAll('.grove.range .gi, .bb.on').forEach(e => {
+        const b = e.getBoundingClientRect();
+        if (b.top < baseY && b.bottom > baseY) spans.push([Math.max(0, b.left), Math.min(innerWidth, b.right)]);
+      });
+      spans.sort((a, b) => a[0] - b[0]);
+      let covered = 0, cur = null;
+      for (const sp of spans) {
+        if (sp[1] <= sp[0]) continue;
+        if (!cur || sp[0] > cur[1]) { if (cur) covered += cur[1] - cur[0]; cur = [sp[0], sp[1]]; }
+        else cur[1] = Math.max(cur[1], sp[1]);
+      }
+      if (cur) covered += cur[1] - cur[0];
+      baseCoverage = covered / innerWidth;
+    }
+    return {
+      box: r ? { top: r.top, bottom: r.bottom, left: r.left, right: r.right } : null,
+      vw: innerWidth, vh: innerHeight, baseCoverage, dpr: devicePixelRatio,
+      // fixed overlays that sit on the painting: the endnote card and the minimap
+      overlays: ['endnote', 'minimap'].map(id => { const e = document.getElementById(id); if (!e) return null; const b = e.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom }; }).filter(Boolean),
+      todayOn: !!today && today.classList.contains('on') && getComputedStyle(today).opacity === '1',
+      range: window.__journeyRange || null,
+      surfaces: window.__journeyStats ? window.__journeyStats.aliveSurfaces : null,
+    };
+  });
+  if (!geo.box) return { geo, coverage: 0, topLight: 0, baseCoverage: 0, midPts: [], midPx: [] };
+  const shot = await shotFn();
+  const xs = n => Array.from({ length: n }, (_, i) => Math.round(40 + (geo.vw - 80) * i / (n - 1)));
+  const clampY = y => Math.max(1, Math.min(geo.vh - 2, Math.round(y)));
+  const topPts = xs(12).map(x => [x, 30]);
+  // the inside row sits below the endnote card (which covers the top of a
+  // phone screen) and skips the minimap's columns
+  const belowCards = Math.max(0, geo.box.top, ...geo.overlays.filter(o => o.top < geo.vh / 2).map(o => o.bottom + 12));
+  const midY = clampY(Math.min(geo.box.bottom - 30, (belowCards + geo.box.bottom - 30) / 2));
+  const midPts = xs(12).map(x => [x, midY]).filter(([x, y]) => !geo.overlays.some(o => x >= o.left - 4 && x <= o.right + 4 && y >= o.top && y <= o.bottom));
+  // screenshots are device pixels: scale the CSS-px sample points by the DPR
+  const scale = pts => pts.map(([x, y]) => [Math.round(x * geo.dpr), Math.round(y * geo.dpr)]);
+  const px = samplePixels(shot, scale([...topPts, ...midPts]));
+  const top = px.slice(0, topPts.length), midPx = px.slice(topPts.length);
+  return { geo, coverage: geo.box.bottom / geo.vh, topLight: top.filter(light).length / top.length, baseCoverage: geo.baseCoverage, midPts, midPx };
+}
+// The same mid-row points rendered with ?range=off at the end of the scroll;
+// returns the share of points that differ from the painted read.
+async function rangeOffDiff(browserLike, ctxOpts, baseUrl, read) {
+  if (!read.midPts.length) return 0;
+  const context = await browserLike.newContext(ctxOpts);
+  const page = await context.newPage();
+  await page.goto(`${baseUrl}/?t=day&range=off`, { waitUntil: 'load' });
+  await page.waitForTimeout(700);
+  const maxY = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
+  await page.evaluate(y => window.scrollTo(0, y), maxY);
+  await page.waitForTimeout(2500);
+  const px = samplePixels(await page.screenshot(), read.midPts.map(([x, y]) => [Math.round(x * read.geo.dpr), Math.round(y * read.geo.dpr)]));
+  await context.close();
+  let diff = 0;
+  px.forEach((p, i) => { const q = read.midPx[i]; if (Math.abs(p[0] - q[0]) + Math.abs(p[1] - q[1]) + Math.abs(p[2] - q[2]) > 40) diff++; });
+  return diff / px.length;
+}
+async function scenarioRange(browser, baseUrl) {
+  const out = { errors: [] };
+  const open = async (ctxOpts, query, block) => {
+    const context = await browser.newContext(ctxOpts);
+    if (block) await context.route(block, r => r.abort());
+    const page = await context.newPage();
+    const errs = [];
+    page.on('pageerror', e => errs.push(String(e)));
+    page.on('console', m => {
+      if (m.type() !== 'error') return;
+      const url = (m.location() && m.location().url) || '';
+      if (url.includes('/img?path=')) return;                       // fixture photos 404 (KTD7)
+      if (block && url.includes(block.replace(/^\*\*\//, '').split('*')[0])) return;  // the blocked file itself
+      errs.push(`${m.text()} [${url}]`);
+    });
+    await page.goto(`${baseUrl}/?t=day${query}`, { waitUntil: 'load' });
+    await page.waitForTimeout(700);
+    return { context, page, errs };
+  };
+  const desktopOpts = { viewport: { width: 1440, height: 1000 } };
+  // Desktop: far, 600 out, and the end.
+  {
+    const { context, page, errs } = await open(desktopOpts, '');
+    const plen = await page.evaluate(() => (document.documentElement.scrollHeight - innerHeight) / 1.12);
+    const maxY = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
+    const at = async (before) => { await page.evaluate(y => window.scrollTo(0, y), Math.round(maxY * (1 - before / plen))); await page.waitForTimeout(2200); };
+    await at(2 * 1000 + 400);
+    out.farBoxes = await page.evaluate(() => [...document.querySelectorAll('.prop.range img')].map(i => { const r = i.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.bottom)]; }));
+    out.farIntersects = out.farBoxes.some(([t, b]) => b > 0 && t < 1000);
+    await at(600);
+    const near = await page.evaluate(() => { const i = document.querySelector('.prop.range img[src*="centre"]'); const r = i.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, vh: innerHeight }; });
+    out.nearBottomInside = near.bottom > 0 && near.bottom < near.vh;
+    if (out.nearBottomInside) {
+      const y = Math.max(1, Math.round(near.bottom - 40));
+      const pts = Array.from({ length: 10 }, (_, i) => [200 + i * 110, y]);
+      const px = samplePixels(await page.screenshot(), pts);
+      const offCtx = await browser.newContext(desktopOpts); const offPage = await offCtx.newPage();
+      await offPage.goto(`${baseUrl}/?t=day&range=off`, { waitUntil: 'load' }); await offPage.waitForTimeout(700);
+      await offPage.evaluate(y2 => window.scrollTo(0, y2), Math.round(maxY * (1 - 600 / plen))); await offPage.waitForTimeout(2200);
+      const off = samplePixels(await offPage.screenshot(), pts); await offCtx.close();
+      out.nearNotGround = px.filter((p, i) => Math.abs(p[0] - off[i][0]) + Math.abs(p[1] - off[i][1]) + Math.abs(p[2] - off[i][2]) > 40).length / px.length;
+    } else out.nearNotGround = 0;
+    out.desktop = await rangeEndRead(page, () => page.screenshot());
+    out.desktop.offDiff = await rangeOffDiff(browser, desktopOpts, baseUrl, out.desktop);
+    out.desktopScrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+    out.tailD = await page.evaluate(() => { const p = document.querySelector('#map > svg path[stroke-dasharray]'); return p ? p.getAttribute('d').trim().slice(-24) : ''; });
+    out.grassClipped = await page.evaluate(() => [...document.querySelectorAll('.grove.range .gi.grass svg.sp-img')].every(e => getComputedStyle(e).overflow === 'hidden'));
+    out.grassCount = await page.evaluate(() => document.querySelectorAll('.grove.range .gi.grass').length);
+    out.treeBillboards = await page.evaluate(() => document.querySelectorAll('.grove.range').length);
+    out.ridge = await page.evaluate(() => !!document.getElementById('ridge'));
+    out.errors.push(...errs);
+    await context.close();
+  }
+  // Phone: the end, plus where the range first enters the top edge.
+  {
+    const { context, page, errs } = await open({ ...devices['iPhone 13'] }, '');
+    const plen = await page.evaluate(() => (document.documentElement.scrollHeight - innerHeight) / 1.12);
+    const maxY = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
+    out.phoneEnter = null;
+    for (const before of [3400, 3000, 2600, 2200, 1800, 1400, 1000]) {
+      await page.evaluate(y => window.scrollTo(0, y), Math.round(maxY * (1 - before / plen)));
+      await page.waitForTimeout(1500);
+      const b = await page.evaluate(() => { const i = document.querySelector('.prop.range img[src*="centre"]'); return i ? i.getBoundingClientRect().bottom : -1; });
+      if (b > 0) { out.phoneEnter = before + 110; break; }
+    }
+    out.phone = await rangeEndRead(page, () => page.screenshot());
+    out.phone.offDiff = await rangeOffDiff(browser, { ...devices['iPhone 13'] }, baseUrl, out.phone);
+    out.errors.push(...errs);
+    await context.close();
+  }
+  // Levers and flat mode.
+  const count = async (query) => {
+    const { context, page } = await open(desktopOpts, query);
+    const r = await page.evaluate(() => ({ range: document.querySelectorAll('.range').length, ridge: !!document.getElementById('ridge'), sh: document.documentElement.scrollHeight,
+      tail: (() => { const p = document.querySelector('#map > svg path[stroke-dasharray]'); return p ? p.getAttribute('d').trim().slice(-24) : ''; })() }));
+    await context.close(); return r;
+  };
+  out.off = await count('&range=off');
+  out.flat = await count('&ground=flat');
+  out.flatOff = await count('&ground=flat&range=off');
+  // ?sprites=off: the tree line falls back to the vector pine and boulder.
+  {
+    const { context, page, errs } = await open(desktopOpts, '&sprites=off');
+    out.vector = await rangeEndRead(page, () => page.screenshot());
+    out.vectorErrors = errs;
+    await context.close();
+  }
+  // A blocked centre painting hides itself; the flanks stay.
+  {
+    const { context, page, errs } = await open(desktopOpts, '', '**/backdrop-centre-range.webp*');
+    const maxY = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
+    await page.evaluate(y => window.scrollTo(0, y), maxY); await page.waitForTimeout(1800);
+    out.blocked = await page.evaluate(() => {
+      const imgs = [...document.querySelectorAll('.prop.range img')];
+      return { hidden: imgs.filter(i => i.hidden && getComputedStyle(i).display === 'none').length,
+        shownPlanes: [...document.querySelectorAll('.prop.range')].filter(e => e.style.display !== 'none' && !e.querySelector('img').hidden).length };
+    });
+    out.blockedErrors = errs;
+    await context.close();
+  }
+  // A missing grass sheet: the tree line still builds, without grass.
+  {
+    const { context, page, errs } = await open(desktopOpts, '', '**/grass-clumps.webp*');
+    out.noGrassTree = await page.evaluate(() => document.querySelectorAll('.grove.range').length);
+    out.noGrassErrors = errs;
+    await context.close();
+  }
+  // Night: no filter inside the 3D tree; the sky tint overlay does the work.
+  {
+    const { context, page } = await open(desktopOpts, '&t=night');
+    out.night = await page.evaluate(() => ({
+      skytint: !!document.getElementById('skytint'),
+      filtered: [...document.querySelectorAll('#map .range, #map .range *')].filter(e => getComputedStyle(e).filter !== 'none').length,
+    }));
+    await context.close();
+  }
+  // WebKit: the same end-position read, when the engine is installed.
+  out.webkit = null;
+  try {
+    const wb = await webkit.launch();
+    try {
+      const context = await wb.newContext(desktopOpts);
+      const page = await context.newPage();
+      await page.goto(`${baseUrl}/?t=day`, { waitUntil: 'load' });
+      await page.waitForTimeout(700);
+      out.webkit = await rangeEndRead(page, () => page.screenshot());
+      await context.close();
+      out.webkit.offDiff = await rangeOffDiff(wb, desktopOpts, baseUrl, out.webkit);
+    } finally { await wb.close(); }
+  } catch (e) { out.webkitSkipped = String(e).slice(0, 120); }
+  return out;
 }
 
 /* ---------- U8 scenario: grass sway and creek flow ---------- */
@@ -1243,6 +1468,39 @@ async function main() {
         ['atlas loaded (no fallback class)', !p.atlasFailed],
       ];
       checks.forEach(([n, ok]) => { console.log(`  [${ok ? 'PASS' : 'FAIL'}] ${n}`); if (!ok) allOk = false; });
+    }
+
+    // U7 scenario: the trail-end range.
+    {
+      const r = await scenarioRange(browser, baseUrl);
+      console.log('\n=== U7: trail-end range ===');
+      const fmt = e => e ? `cover=${e.coverage.toFixed(2)} topLight=${e.topLight.toFixed(2)} vsOff=${(e.offDiff || 0).toFixed(2)} baseCover=${(e.baseCoverage || 0).toFixed(2)} today=${e.geo.todayOn} surfaces=${e.geo.surfaces}` : 'none';
+      console.log(`desktop ${fmt(r.desktop)}; phone ${fmt(r.phone)} enterAt=${r.phoneEnter}; webkit ${r.webkit ? fmt(r.webkit) : 'skipped: ' + r.webkitSkipped}`);
+      console.log(`far boxes=${JSON.stringify(r.farBoxes)} near inside=${r.nearBottomInside} nearVsOff=${(r.nearNotGround || 0).toFixed(2)} tail=${JSON.stringify(r.tailD)} off tail=${JSON.stringify(r.off.tail)} scrollHeight painted=${r.desktopScrollHeight} off=${r.off.sh} trees=${r.treeBillboards} grass=${r.grassCount} blocked=${JSON.stringify(r.blocked)}`);
+      const checks = [
+        ['AE1 desktop: the range fills the top 55-80% of the frame at the end', r.desktop.coverage >= 0.55 && r.desktop.coverage <= 0.8],
+        ['AE1 desktop: peaks and sky show in the top strip (>= 20% light pixels)', r.desktop.topLight >= 0.2],
+        ['AE1/R4 desktop: the range changes the pixels inside its box against ?range=off (>= 60%)', r.desktop.offDiff >= 0.6],
+        ['AE1/R6 desktop: the today card is fully revealed in front of the range', r.desktop.geo.todayOn],
+        ['AE2 phone: the range fills the top 55-80% of the frame at the end', r.phone.coverage >= 0.55 && r.phone.coverage <= 0.8],
+        ['AE2 phone: peaks and sky show in the top strip (>= 20% light pixels)', r.phone.topLight >= 0.2],
+        ['AE2/R4 phone: the range changes the pixels inside its box against ?range=off (>= 60%)', r.phone.offDiff >= 0.6],
+        ['AE2/R9: the tree line and cards cover the painting base on desktop and phone (>= 85% of the base row)', r.desktop.baseCoverage >= 0.85 && r.phone.baseCoverage >= 0.85],
+        ['AE3: two screens out no painting box intersects the viewport', !r.farIntersects],
+        ['AE3: 600 px out the painting base is inside the frame and the pixels above it are not ground', r.nearBottomInside && r.nearNotGround >= 0.6],
+        ['AE4: ?range=off builds no range element, keeps the plain path end and has no ridge', r.off.range === 0 && !r.off.ridge && !r.off.tail.endsWith('760') && !r.ridge],
+        ['AE4: flat mode builds no range element (with and without the lever)', r.flat.range === 0 && r.flatOff.range === 0],
+        ['AE6: the visible path runs on to the tree line and the scroll height is unchanged', r.tailD.endsWith('760') && r.desktopScrollHeight === r.off.sh],
+        ['AE7: a blocked painting hides itself, the flanks stay, no error escapes', r.blocked.hidden === 1 && r.blocked.shownPlanes === 2 && r.blockedErrors.length === 0],
+        ['two tree-line billboards with static grass, clipped to their cells', r.treeBillboards === 2 && r.grassCount > 0 && r.grassClipped],
+        ['?sprites=off: the vector tree line still covers the base', r.vector.geo.box !== null && r.vector.baseCoverage >= 0.85 && r.vectorErrors.length === 0],
+        ['a missing grass sheet leaves the tree line standing, no error', r.noGrassTree === 2 && r.noGrassErrors.length === 0],
+        ['R14: night uses the sky tint, no filter inside the 3D tree', r.night.skytint && r.night.filtered === 0],
+        ['no page error in the painted, vector or phone reads', r.errors.length === 0],
+        ['WebKit: the painting stays in front of the ground at the end (or engine not installed)', r.webkit === null || r.webkit.offDiff >= 0.6],
+      ];
+      checks.forEach(([n, ok]) => { console.log(`  [${ok ? 'PASS' : 'FAIL'}] ${n}`); if (!ok) allOk = false; });
+      if (r.errors.length) console.log(`  errors: ${r.errors.slice(0, 3).join(' | ')}`);
     }
 
     // U4/KTD4 scenario: lookahead attach/detach snapshot at a fixed camera position.
