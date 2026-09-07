@@ -659,7 +659,7 @@
   // and every crossing helper are unchanged by the range.
   const RANGE_END = atDist(PLEN);
   const RANGE_BASE_Y = RANGE_END.y - 110;
-  const dVis = dStr;
+  const dVis = PAINT_RANGE ? `${dStr} L ${RANGE_END.x} ${RANGE_END.y - 50}` : dStr;
   bands.forEach((b, bandIdx) => {
     if (GROUND_FLAT){
       // ?ground=flat (or an empty manifest) is a faithful rollback to
@@ -667,7 +667,7 @@
       // trail with it would show nothing — build the old plain stroke
       // instead of relying on that at runtime.
       const bandPath = document.createElementNS(NS, 'path');
-      bandPath.setAttribute('d', dStr); bandPath.setAttribute('fill', 'none');
+      bandPath.setAttribute('d', dVis); bandPath.setAttribute('fill', 'none');
       bandPath.setAttribute('stroke', '#5C5137'); bandPath.setAttribute('stroke-width', '120');
       bandPath.setAttribute('stroke-linecap', 'round'); bandPath.setAttribute('opacity', '0.12');
       bandPath.setAttribute('clip-path', `url(#${b.clipId})`);
@@ -681,7 +681,7 @@
       // disappearing. No rnd() call; one extra path inside the existing band
       // <svg> (not a new element outside it, so no new GPU surface).
       const fallbackPath = document.createElementNS(NS, 'path');
-      fallbackPath.setAttribute('d', dStr); fallbackPath.setAttribute('fill', 'none');
+      fallbackPath.setAttribute('d', dVis); fallbackPath.setAttribute('fill', 'none');
       fallbackPath.setAttribute('stroke', '#5C5137'); fallbackPath.setAttribute('stroke-width', '120');
       fallbackPath.setAttribute('stroke-linecap', 'round'); fallbackPath.setAttribute('stroke-opacity', '0.12');
       fallbackPath.setAttribute('clip-path', `url(#${b.clipId})`);
@@ -690,13 +690,13 @@
       // wider than the trail stroke so it peeks out as an outline, then the
       // dirt-tile pattern on top at full opacity. dStr geometry is unchanged.
       const inkEdge = document.createElementNS(NS, 'path');
-      inkEdge.setAttribute('d', dStr); inkEdge.setAttribute('fill', 'none');
+      inkEdge.setAttribute('d', dVis); inkEdge.setAttribute('fill', 'none');
       inkEdge.setAttribute('stroke', INK_COLOR); inkEdge.setAttribute('stroke-width', '126');
       inkEdge.setAttribute('stroke-linecap', 'round'); inkEdge.setAttribute('stroke-opacity', '.35');
       inkEdge.setAttribute('clip-path', `url(#${b.clipId})`);
       b.svg.appendChild(inkEdge);
       const dirtPath = document.createElementNS(NS, 'path');
-      dirtPath.setAttribute('d', dStr); dirtPath.setAttribute('fill', 'none');
+      dirtPath.setAttribute('d', dVis); dirtPath.setAttribute('fill', 'none');
       dirtPath.setAttribute('stroke', GROUND_DIRT ? b.dirtFill : '#8B8A7E'); dirtPath.setAttribute('stroke-width', '120');
       dirtPath.setAttribute('stroke-linecap', 'round');
       dirtPath.setAttribute('clip-path', `url(#${b.clipId})`);
@@ -715,7 +715,7 @@
       b.svg.appendChild(g);
     }
     const dotsPath = document.createElementNS(NS, 'path');
-    dotsPath.setAttribute('d', dStr); dotsPath.setAttribute('fill', 'none');
+    dotsPath.setAttribute('d', dVis); dotsPath.setAttribute('fill', 'none');
     dotsPath.setAttribute('stroke', GROUND_FLAT ? '#6B5C40' : INK_COLOR); dotsPath.setAttribute('stroke-width', '13');
     dotsPath.setAttribute('stroke-linecap', 'round'); dotsPath.setAttribute('stroke-dasharray', '0.01 42');
     // stroke-opacity, not opacity: element opacity allocates an offscreen
@@ -1649,21 +1649,30 @@
   // is short; the near side covers the card's projected foot.
   const grassClear = (x, y) => pts.some(p =>
     Math.abs(p.x - x) < 200 && (y < p.y ? p.y - y < 160 : y - p.y < 120));
-  if (MOTION){
+  // One grass clump (3..5 sprites in a 128 x 64 box). gen is the random
+  // source: the U8 sway clumps pass rnd so their seeded layout is exactly
+  // what it was; the U7 tree line passes its own generator. With sway the
+  // box is wrapped in the animated .sway-in element (its dur/delay/amp are
+  // drawn after the sprites, the same order as before); without it the box
+  // is static and lives inside a grove billboard, where the sp-img class
+  // clips each cell to its sheet cell (.grove .gi svg.sp-img).
+  const GRASS_OK = !!GRASS_URL && GRASS_CELLS.length >= 4;
+  const clumpMarkup = (gen, sway) => {
     const gw = GRASS.size[0], gh = GRASS.size[1];
-    const clumpMarkup = () => {
-      const n = 3 + Math.floor(rnd() * 3);   // 3..5 sprites
-      let inner = '';
-      for (let k = 0; k < n; k++){
-        const c = GRASS_CELLS[Math.floor(rnd() * GRASS_CELLS.length)];
-        const h = 40 + rnd() * 24, w = h * c.w / c.h;
-        const x = 8 + k * (104 / n) + rnd() * 10;
-        inner += `<svg x="${x.toFixed(0)}" y="${(64 - h).toFixed(0)}" width="${w.toFixed(0)}" height="${h.toFixed(0)}" viewBox="${c.x} ${c.y} ${c.w} ${c.h}">` +
-          `<image width="${gw}" height="${gh}" href="${GRASS_URL}"/></svg>`;
-      }
-      return `<div class="sway-in" style="--dur:${(2.4 + rnd() * 1.6).toFixed(2)}s; --delay:-${(rnd() * 3).toFixed(2)}s; --amp:${(2.6 + rnd() * 2).toFixed(1)}deg;">` +
-        `<svg width="128" height="64" viewBox="0 0 128 64">${inner}</svg></div>`;
-    };
+    const n = 3 + Math.floor(gen() * 3);   // 3..5 sprites
+    let inner = '';
+    for (let k = 0; k < n; k++){
+      const c = GRASS_CELLS[Math.floor(gen() * GRASS_CELLS.length)];
+      const h = 40 + gen() * 24, w = h * c.w / c.h;
+      const x = 8 + k * (104 / n) + gen() * 10;
+      inner += `<svg class="sp-img" x="${x.toFixed(0)}" y="${(64 - h).toFixed(0)}" width="${w.toFixed(0)}" height="${h.toFixed(0)}" viewBox="${c.x} ${c.y} ${c.w} ${c.h}">` +
+        `<image width="${gw}" height="${gh}" href="${GRASS_URL}"/></svg>`;
+    }
+    const box = `<svg width="128" height="64" viewBox="0 0 128 64">${inner}</svg>`;
+    if (!sway) return box;
+    return `<div class="sway-in" style="--dur:${(2.4 + gen() * 1.6).toFixed(2)}s; --delay:-${(gen() * 3).toFixed(2)}s; --amp:${(2.6 + gen() * 2).toFixed(1)}deg;">${box}</div>`;
+  };
+  if (MOTION){
     bands.forEach(b => {
       const want = 2 + Math.floor(rnd() * 2);   // 2..3 clumps per band
       // Most trail-side spots sit inside a camp's keep-out (the camps line
@@ -1679,7 +1688,7 @@
         if (grassClear(x, yy)) continue;
         if (Math.abs(yy - creekY) < 150) continue;
         if (pondPos && Math.abs(pondPos.x - x) < 320 && Math.abs(pondPos.y - yy) < 230) continue;
-        const el = prop(x, yy, clumpMarkup(), {cls: 'sway'});
+        const el = prop(x, yy, clumpMarkup(rnd, true), {cls: 'sway'});
         swayPlaced.push({x, y: yy, el});
         placed++;
       }
@@ -1724,7 +1733,6 @@
       props.push({el, y: pondPos.y, yMin: pondPos.y - 130, yMax: pondPos.y + 130});
     }
   }
-  window.__journeyMotion = { on: MOTION, sway: swayPlaced.map(s => ({x: s.x, y: s.y})) };
 
   /* ---------- U7: the trail-end range ----------
      Three painted planes stand on the ground about 110 world px past the
@@ -1752,8 +1760,88 @@
       prop(CX, RANGE_BASE_Y, rangeImg(0), {cls: 'range', far: rangeFar(RANGE_BASE_Y)}),
     ];
     planes.forEach(el => el.querySelector('img').addEventListener('error', ev => { ev.target.hidden = true; }));
-    window.__journeyRange = { baseY: RANGE_BASE_Y, endY: RANGE_END.y, far: rangeFar(RANGE_BASE_Y) };
+
+    // Tree line: two grove-style billboards (one 3D surface each), left and
+    // right of the path tail, dense enough to hide the paintings' flat
+    // bottom edge, spanning out under the flanks. Their bases sit between
+    // 20 and 90 px behind the trail's end: in front of every painting base
+    // (700) and behind the today card (the trail's end + 90), so depth alone
+    // orders card over trees over paintings. A local generator keeps every
+    // existing tree, drift and clump where it is (rnd() is untouched) and
+    // gives the same tree line on every tier. Without atlas sprites the
+    // items fall back to the vector pine and boulder like groves do.
+    let rseed = 20260907;
+    const rangeRnd = () => (rseed = (rseed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    const rangeSeason = SEASON_OF(Math.round(monthAtY(RANGE_BASE_Y)));
+    const [rTone, rDark] = SEASON_PINE[rangeSeason];
+    const treeMinY = RANGE_END.y - 90, treeMaxY = RANGE_END.y - 20;
+    const treeLine = [];
+    [-1, 1].forEach(side => {
+      const items = [];
+      let x = RANGE_END.x + side * 150, k = 0;
+      while (Math.abs(x - CX) < 2160){
+        const h = 150 + rangeRnd() * 80;
+        const yy = treeMinY + rangeRnd() * (treeMaxY - treeMinY);
+        const pick = Math.floor(h * 1000);
+        if (GROVE_SPRITES){
+          const cell = rangeSeason === 'winter' ? 'spruce-snow-' + 'abc'[pick % 3]
+            : (h >= 165 ? 'spruce-tall-' : 'spruce-short-') + 'abcd'[pick % 4];
+          items.push({x, y: yy, cell, kind: 'spruce', box: spriteBox(cell, h)});
+        } else {
+          items.push({x, y: yy, svg: pineSVG(h, rTone, rDark)});
+        }
+        if (k % 5 === 2){          // a boulder at the front now and then
+          const bw = 70 + rangeRnd() * 90, by = Math.min(treeMaxY, yy + 30 + rangeRnd() * 30);
+          if (GROVE_SPRITES){
+            const cell = 'boulder-' + 'abcd'[Math.floor(bw * 1000) % 4];
+            const c = ATLAS_CELLS[cell];
+            items.push({x: x + side * 30, y: by, cell, kind: 'boulder', box: {w: bw, h: c.h * bw / c.w}});
+          } else {
+            items.push({x: x + side * 30, y: by, svg: boulderSVG(bw)});
+          }
+        }
+        if (GRASS_OK && k % 3 === 1){   // static grass between the trunks
+          items.push({x: x + side * 35, y: Math.min(treeMaxY, yy + 20 + rangeRnd() * 20), grass: clumpMarkup(rangeRnd, false)});
+        }
+        x += side * (60 + rangeRnd() * 30);
+        k++;
+      }
+      const baseY = Math.max(...items.map(i => i.y));
+      const yMin = Math.min(...items.map(i => i.y));
+      const baseX = items.reduce((a, i) => a + i.x, 0) / items.length;
+      const el = document.createElement('div');
+      el.className = 'grove range';
+      el.style.left = baseX + 'px'; el.style.top = baseY + 'px';
+      el.innerHTML = items
+        .sort((a, b) => a.y - b.y)   // farther items paint first
+        .map(i => i.cell
+          ? `<div class="gi sp ${i.kind}" data-cell="${i.cell}" style="left:${(i.x - baseX).toFixed(0)}px; bottom:${((baseY - i.y) * GI_F).toFixed(0)}px; ` +
+            `width:${i.box.w.toFixed(0)}px; height:${i.box.h.toFixed(0)}px;">${spriteMarkup(i.cell, i.box.w, i.box.h)}</div>`
+          : i.grass
+          ? `<div class="gi grass" style="left:${(i.x - baseX).toFixed(0)}px; bottom:${((baseY - i.y) * GI_F).toFixed(0)}px; width:128px; height:64px;">${i.grass}</div>`
+          : `<div class="gi" style="left:${(i.x - baseX).toFixed(0)}px; bottom:${((baseY - i.y) * GI_F).toFixed(0)}px;">${i.svg}</div>`)
+        .join('');
+      map.appendChild(el);
+      props.push({el, y: baseY, yMin, yMax: baseY, far: rangeFar(baseY)});
+      treeLine.push({side, count: items.length, baseY});
+    });
+    // Desktop only: a few ordinary sway clumps in front of the tree line so
+    // the grass there moves like the rest of the meadow. Same keep-out as
+    // U8's clumps (grassClear), so none sits under the today card.
+    let swayHere = 0;
+    if (MOTION){
+      for (let t = 0; t < 12 && swayHere < 3; t++){
+        const x = RANGE_END.x + (t % 2 ? 1 : -1) * (240 + rangeRnd() * 700);
+        const yy = treeMaxY + 10 + rangeRnd() * 40;
+        if (grassClear(x, yy)) continue;
+        const el = prop(x, yy, clumpMarkup(rangeRnd, true), {cls: 'sway'});
+        swayPlaced.push({x, y: yy, el});
+        swayHere++;
+      }
+    }
+    window.__journeyRange = { baseY: RANGE_BASE_Y, endY: RANGE_END.y, far: rangeFar(RANGE_BASE_Y), treeLine, swayHere };
   }
+  window.__journeyMotion = { on: MOTION, sway: swayPlaced.map(s => ({x: s.x, y: s.y})) };
 
   /* ---------- camera ---------- */
   const intro = document.getElementById('intro');
