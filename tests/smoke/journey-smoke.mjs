@@ -879,7 +879,8 @@ async function scenarioWater(browser, baseUrl, waterAvg, { query = '', block = n
     // of ground a standing billboard covers behind itself
     const bridgeBlockers = Array.from(document.querySelectorAll('#map > .bb')).filter(b => {
       const bx = parseFloat(b.style.left), by = parseFloat(b.style.top);
-      return Math.abs(bx - w.bridgeX) <= 330 && by >= w.creekY && by - 420 <= w.creekY + 94;
+      // the same rule as journey.js: the card's own half-width plus the deck's reach
+      return Math.abs(bx - w.bridgeX) <= b.offsetWidth / 2 + 130 && by >= w.creekY && by - 420 <= w.creekY + 94;
     }).length;
     return { creekBands, creekGroups, paintedCreeks, bridges, pondGroups, paintedPonds, shimmer, animated, bridgeBlockers };
   }, BANDH);
