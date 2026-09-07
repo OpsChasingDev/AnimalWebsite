@@ -60,6 +60,14 @@ pets/
 - `/img?path=...&w=...` is a resize-and-cache proxy so the trail loads small
   images; the lightbox loads larger ones.
 - `/api/journey` returns the computed journey model as JSON.
+- The ground, trees, rocks, water and mountain backdrop are an illustrated
+  ink-and-brush art pack that lives in `static/images/alpine/`, driven by
+  `static/images/alpine/manifest.json` (file names, pixel sizes and byte
+  budgets for every asset). Until real art lands, that folder holds
+  deterministic placeholder art. See `docs/alpine-art-brief.md` for the
+  style sheet, palettes and full asset list. Append `?ground=flat` to the
+  trail URL to roll the ground back to the pre-art flat gradient look — the
+  phone-budget rollback if the painted overlays ever need to come off.
 
 ## Development
 
@@ -75,6 +83,31 @@ On App Service it uses the web app's managed identity; locally it falls back to
 `az account get-access-token`, which needs `az login` and the
 `Storage Blob Data Contributor` role on the `pets` container. Without it the
 site has nothing to render and says so instead of erroring.
+
+Run the journey locally without Azure credentials by pointing it at a saved
+model: `JOURNEY_FIXTURE=tests/fixtures/journey-sample.json python app.py`, then
+open `http://localhost:8000`. Photos 404 in fixture mode (there is no blob
+storage behind them); that is expected, the fixture exercises the trail's
+layout, not the photos. The fixture is ignored, with a logged warning, when the
+app detects it is running on App Service, so a leftover setting can never leak
+fake data onto the live site.
+
+A Playwright smoke script drives the fixture-mode page through a full-trail
+scroll sweep on desktop, lite (touch/iPhone) and reduced-motion profiles and
+checks console errors, alive band and surface counts, frame time and long
+tasks. First-time setup: `cd tests/smoke && npm install && npx playwright
+install chromium`. Then run `node journey-smoke.mjs` from that folder. Add
+`--write-baseline` once, after an intentional change to the ground rendering,
+to re-record `tests/smoke/baseline.json`. It also runs a fixture with twice
+the trail length to confirm alive bands never grow with trail length.
+
+`tests/smoke/webkit-gpu-memory.mjs` measures the GPU-process memory of
+Playwright's WebKit (Safari's engine) for URL variants at iPhone size, the
+best desktop proxy for the phone's crash ceiling. Run it against a running
+fixture server; compare every variant with `?ground=flat`.
+
+Unit tests use plain `unittest`:
+`python -m unittest tests/test_fixture_mode.py -v`.
 
 `/upload` is not registered locally unless `UPLOAD_DEV_AUTH=1` is set (and it is
 inert on App Service, where Easy Auth is what makes the sign-in headers real).

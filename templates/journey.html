@@ -97,6 +97,7 @@
 
 <div id="spacer" aria-hidden="true"></div>
 
+<script>window.ALPINE = {{ alpine | tojson }};</script>
 <script>window.JOURNEY = {{ journey | tojson }};</script>
 <script src="{{ url_for('static', filename='js/journey.js') }}"></script>
 </body>

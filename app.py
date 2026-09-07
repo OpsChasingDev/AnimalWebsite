@@ -69,6 +69,50 @@ SAFE_IMG_PATH_RE = re.compile(
 # Accent fallback rotation for pets whose meta.json omits "color".
 FALLBACK_COLORS = ["#8A4E76", "#C9718A", "#3F7D77", "#C98A3D", "#5B7FA6", "#A6702E"]
 
+ALPINE_MANIFEST_PATH = Path(app.static_folder) / "images" / "alpine" / "manifest.json"
+_EMPTY_ALPINE_MANIFEST = {"version": 1, "assets": []}
+
+
+def _read_json_file(label: str, path, log, fallback_note: str):
+    """Parse a JSON file, logging an unreadable file and a corrupt one as two
+    distinct messages through `log`. Returns None on either failure so the
+    caller picks its own fallback."""
+    try:
+        return json.loads(Path(path).read_text())
+    except OSError as e:
+        log("%s %s unreadable (%s); %s", label, path, e, fallback_note)
+    except ValueError as e:
+        log("%s %s is not valid JSON (%s); %s", label, path, e, fallback_note)
+    return None
+
+
+def _load_alpine_manifest(path) -> dict:
+    """Read the alpine art manifest once. A missing or corrupt manifest is not
+    fatal: journey.js treats an empty manifest as the `?ground=flat` state,
+    so the ground still renders, just without the painted overlays. Factored
+    out (instead of inlined at import) so a unittest can point it at a temp
+    path without touching the real static/ tree.
+    """
+    data = _read_json_file("alpine manifest", path, app.logger.error, "using an empty manifest")
+    return data if data is not None else dict(_EMPTY_ALPINE_MANIFEST)
+
+
+# Read once at import, like the season tables: the manifest almost never
+# changes at runtime (a real-art drop-in rewrites file contents and hashes,
+# not this file's shape), so there is no reason to re-parse it per request.
+ALPINE_MANIFEST = _load_alpine_manifest(ALPINE_MANIFEST_PATH)
+
+
+def _on_app_service_home() -> bool:
+    """True when running on App Service Linux with persistent /home.
+
+    Reads the environment live on every call (not the import-time
+    ON_APP_SERVICE global) so tests that patch os.environ after import, and
+    the fixture guard in get_model(), stay accurate.
+    """
+    return bool(os.environ.get("WEBSITE_INSTANCE_ID")) and os.environ.get("HOME") == "/home"
+
+
 def _resolve_state_dir() -> Path:
     """Where the things that must outlive a container recycle go.
 
@@ -83,7 +127,7 @@ def _resolve_state_dir() -> Path:
     override = os.environ.get("SITE_STATE_DIR")
     if override:
         candidates.append(Path(override))
-    if os.environ.get("WEBSITE_INSTANCE_ID") and os.environ.get("HOME") == "/home":
+    if _on_app_service_home():
         candidates.append(Path("/home/data/petsite"))
     candidates.append(THUMB_DIR)
     for path in candidates:
@@ -339,6 +383,12 @@ def _img_url(path: str, width: int) -> str:
     once the container is sealed those 403, so every published URL is now a path
     on this site (spec 6.3) — an external consumer must join it to the site's
     own origin.
+
+    journey.js keeps a second URL builder (assetUrl(), for ALPINE_MANIFEST
+    entries) on purpose: this one proxies blob photos through auth and
+    thumbnailing, that one serves art shipped with the app straight from
+    static/ with a manifest-hash cache buster. Different origins, different
+    cache lifetimes — not to be merged.
     """
     return f"/img?path={urllib.parse.quote(path)}&w={width}"
 
@@ -529,7 +579,36 @@ def invalidate_model() -> None:
         pass  # worst case the photo shows up a minute later
 
 
+# "log this only once" latches for the fixture hook below, so a long-running
+# process doesn't spam the same line on every request.
+_fixture_logged: dict = {"active": False, "ignored": False}
+
+
 def get_model() -> dict:
+    # JOURNEY_FIXTURE lets the journey run from a saved model JSON with no
+    # storage credentials, so the browser smoke script (and a laptop) can
+    # render the page without az login. It must never leak onto the live
+    # site, so the same App Service check _resolve_state_dir() uses (an
+    # instance ID plus /home as HOME) wins over the env var, loudly: a
+    # leftover setting on the real site must not start serving fake data.
+    fixture_path = os.environ.get("JOURNEY_FIXTURE")
+    if fixture_path:
+        if _on_app_service_home():
+            if not _fixture_logged["ignored"]:
+                _fixture_logged["ignored"] = True
+                app.logger.warning(
+                    "JOURNEY_FIXTURE=%s ignored: running on App Service", fixture_path)
+        else:
+            fixture_model = _read_json_file(
+                "JOURNEY_FIXTURE", fixture_path, app.logger.warning, "falling back to the normal model")
+            if fixture_model is not None:
+                if not _fixture_logged["active"]:
+                    _fixture_logged["active"] = True
+                    app.logger.info(
+                        "JOURNEY_FIXTURE=%s: serving the fixture model, storage untouched",
+                        fixture_path)
+                return fixture_model  # never touches _model_cache or the on-disk snapshot
+
     now = time.time()
     cached = _model_cache["model"]
     if (cached is not None
@@ -597,7 +676,7 @@ def journey():
         model = get_model()
     except Exception:
         return _unavailable("The trail is still loading.")
-    return render_template("journey.html", journey=model)
+    return render_template("journey.html", journey=model, alpine=ALPINE_MANIFEST)
 
 
 @app.route("/api/journey")

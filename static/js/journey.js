@@ -99,6 +99,64 @@
     || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   if (LITE) document.body.classList.add('lite');
 
+  /* ALPINE is the manifest app.py reads at import (or an empty one
+     on a missing/corrupt file). Index it by file name so the rest of this
+     script can look up a hash or an atlas cell without re-parsing anything.
+     assetUrl() appends the manifest's content hash as a cache-busting query
+     string, so a real-art drop-in with a rehashed manifest changes what
+     ships with no code change (the rehash step). This is a second URL
+     builder on purpose: /img (built in app.py) proxies blob photos through
+     auth and thumbnailing; assetUrl() serves art shipped with the app. */
+  const ART = {};
+  ((window.ALPINE && window.ALPINE.assets) || []).forEach(a => { ART[a.file] = a; });
+  function assetUrl(name){
+    const a = ART[name];
+    return a ? `/static/images/alpine/${name}?v=${a.hash}` : null;
+  }
+  // An empty manifest (missing/corrupt file) or ?ground=flat both mean "no
+  // painted overlays": the flat season gradient carries the ground instead,
+  // which is always present so the page never renders blank.
+  const GROUND_FLAT = params.get('ground') === 'flat' || !ART['ground-overlay-a.webp'];
+  // Phone-budget levers, settable from the URL so a staging round on the
+  // iPhone can isolate what blows the memory ceiling without a rebuild:
+  //   ?snow=off   skip the winter snow rects entirely
+  //   ?look=0     attach art only to visible bands (default: one band ahead)
+  //   ?tile=512   dirt pattern tile size in world px (default 256; the one
+  //               remaining <pattern>, since a stroke needs a paint server)
+  const GROUND_SNOW = params.get('snow') !== 'off';
+  const GROUND_INK = params.get('ink') !== 'off';        // ?ink=off   no brush-grain overlay rect
+  const GROUND_DIRT = params.get('dirt') !== 'off';      // ?dirt=off  plain trail stroke, no dirt pattern
+  const GROUND_SPRITES = params.get('sprites') !== 'off'; // ?sprites=off no atlas detail sprites
+  const LOOKAHEAD_BANDS = params.has('look') ? Math.max(0, Number(params.get('look')) || 0) : 1;
+  const TILE = [256, 512, 1024].includes(Number(params.get('tile'))) ? Number(params.get('tile')) : 256;
+  const ART_TILE = 1024;  // world px per overlay image; the art is 1024 px square
+  const INK_COLOR = '#241F1A';  // docs/alpine-art-brief.md section 2
+  const ATLAS = ART['tree-rock-atlas.webp'];
+  const ATLAS_CELLS = {};
+  ((ATLAS && ATLAS.cells) || []).forEach(c => { ATLAS_CELLS[c.name] = c; });
+  const ATLAS_SIZE = ATLAS ? ATLAS.size : [530, 980];
+  const DIRT_URL = assetUrl('dirt-trail-tile.webp');
+  const SNOW_URL = assetUrl('ground-overlay-winter.webp');
+  const ATLAS_URL = assetUrl('tree-rock-atlas.webp');
+  // Atlas load state, tracked once globally (one shared asset decoded once
+  // for every band, not per-band) via a representative probe Image rather
+  // than every detail <image> tag; folded into missingOverlays below the
+  // same way overlayState/dirtState are. Defaults to 'painted' (no known
+  // failure) in flat mode or when the manifest carries no atlas, so neither
+  // ever falsely flags.
+  let atlasState = (GROUND_FLAT || !ATLAS_URL) ? 'painted' : 'loading';
+  // Nested-svg crop idiom (also used by prop() for set dressing): an <image> can't crop to an
+  // atlas cell on its own, so each sprite is a small svg viewport whose
+  // viewBox is the cell's rect in atlas pixels, with one full-atlas <image>
+  // inside it — the atlas is one URL, decoded once, no matter how many
+  // cells reference it. href is attached/detached by the caller.
+  function atlasCellMarkup(name, ax, ay){
+    const c = ATLAS_CELLS[name];
+    if (!c || !GROUND_SPRITES) return '';
+    return `<svg x="${ax - c.w/2}" y="${ay - c.h/2}" width="${c.w}" height="${c.h}" ` +
+      `viewBox="${c.x} ${c.y} ${c.w} ${c.h}"><image class="atlas" width="${ATLAS_SIZE[0]}" height="${ATLAS_SIZE[1]}"/></svg>`;
+  }
+
   /* The ground is sliced into band SVGs, culled independently, so no single
      giant raster surface ever exists (the previous one crashed iOS Safari). */
   const BANDH = 1600, BAND0 = -500;
@@ -115,6 +173,25 @@
     }
   }
   stops.push({off: 1, color: prevColor || SEASON_GROUND.summer});
+
+  /* Winter stretches in world y, from the same 420 px sampling that builds
+     the gradient stops. The snow overlay (the one colored overlay) is
+     clipped to these instead of painted across a whole 1600 px band, and its
+     masked edges fade over the same 2% of LEN the gradient does, so drifts
+     never sit on gold autumn ground. Open-ended at either end of the trail. */
+  const SEASON_FADE = 0.02 * LEN;
+  const winterRanges = [];
+  {
+    let start = null;
+    for (let yy = 0; yy <= LEN + 420; yy += 420){
+      const w = yy <= LEN && SEASON_OF(Math.round(monthAtY(yy))) === 'winter';
+      if (w && start === null) start = yy;
+      if (!w && start !== null){
+        winterRanges.push({a: start === 0 ? -3000 : start - SEASON_FADE, b: yy > LEN ? LEN + 3000 : yy});
+        start = null;
+      }
+    }
+  }
 
   const bands = [];
   for (let bi = 0; bi < NB; bi++){
@@ -136,14 +213,139 @@
       st.setAttribute('stop-color', s.color);
       bgrad.appendChild(st);
     });
-    bdefs.appendChild(bgrad); bsvg.appendChild(bdefs);
+    bdefs.appendChild(bgrad);
+    bsvg.appendChild(bdefs);
     const bg = document.createElementNS(NS, 'rect');
     bg.setAttribute('x', -1100); bg.setAttribute('y', y0 - over);
     bg.setAttribute('width', W + 2200); bg.setAttribute('height', BANDH + over);
     bg.setAttribute('fill', `url(#seasons${bi})`);
     bsvg.appendChild(bg);
+
+    // Overlay choice is by band index, not rnd(): an extra rnd() call in
+    // this loop would shift the seeded sequence and move every tree and
+    // trail drift on the site.
+    const overlayFile = `ground-overlay-${['a','b','c'][(bi * 7) % 3]}.webp`;
+    let inkImgs = [], dirtImg = null, snowImgs = [];
+    // Everything painted is skipped entirely in flat mode so ?ground=flat
+    // really is the pre-art build. Budget rules learned on the iPhone
+    // (2026-09-06): on WebKit every element filled with a <pattern> owns a
+    // GPU tile buffer of tile size x 3x DPR, about 20 MB per band per
+    // pattern at a 1024 tile, even before its image has an href. So the
+    // overlays are plain <image> tiles instead (they draw straight from the
+    // one decoded bitmap, no buffer), the dirt trail keeps the only pattern
+    // because a stroke needs a paint server and uses a small tile, and
+    // nothing here uses a mask, a filter or element opacity.
+    if (!GROUND_FLAT){
+      // World-anchored tiling: image positions are multiples of ART_TILE in
+      // world space, and every band's viewBox is that same world space, so
+      // the tile phase lines up continuously across the 2 px band overlap.
+      // No href yet; update() attaches one only when the band enters the
+      // lookahead window, and until then an <image> paints nothing, so the
+      // gradient rect underneath still shows (the "never blank" guarantee).
+      const tileImages = (parent, yTop, yBot) => {
+        const imgs = [];
+        const x0 = Math.floor(-1100 / ART_TILE) * ART_TILE, x1 = W + 1100;
+        const ya = Math.floor(yTop / ART_TILE) * ART_TILE;
+        for (let ty = ya; ty < yBot; ty += ART_TILE){
+          for (let tx = x0; tx < x1; tx += ART_TILE){
+            const im = document.createElementNS(NS, 'image');
+            im.setAttribute('x', tx); im.setAttribute('y', ty);
+            im.setAttribute('width', ART_TILE); im.setAttribute('height', ART_TILE);
+            parent.appendChild(im); imgs.push(im);
+          }
+        }
+        return imgs;
+      };
+      if (GROUND_INK) inkImgs = tileImages(bsvg, y0 - over, y0 + BANDH + over);
+
+      const dirtPattern = document.createElementNS(NS, 'pattern');
+      dirtPattern.id = 'dirt' + bi;
+      dirtPattern.setAttribute('patternUnits', 'userSpaceOnUse');
+      dirtPattern.setAttribute('x', '0'); dirtPattern.setAttribute('y', '0');
+      dirtPattern.setAttribute('width', TILE); dirtPattern.setAttribute('height', TILE);
+      dirtImg = document.createElementNS(NS, 'image');
+      dirtImg.setAttribute('width', TILE); dirtImg.setAttribute('height', TILE);
+      dirtPattern.appendChild(dirtImg);
+      bdefs.appendChild(dirtPattern);
+
+      // Winter gets its own painted overlay (drifts + bare grass) because a
+      // transparent grain doesn't read as snow (docs/alpine-art-brief.md
+      // section 2). Its tiles sit in a group clipped by one plain rect (a
+      // scissor, no buffer) to the winter stretch; the fade at each end is
+      // the neighbouring season's ground colour painted back over the snow
+      // through a plain gradient, which is a shading with no buffer either.
+      const rx = -1100, rw = W + 2200;
+      if (GROUND_SNOW) winterRanges.forEach((r, k) => {
+        const top = Math.max(r.a, y0 - over), bot = Math.min(r.b, y0 + BANDH + over);
+        if (bot <= top) return;
+        const cp = document.createElementNS(NS, 'clipPath');
+        cp.id = `snowclip${bi}_${k}`; cp.setAttribute('clipPathUnits', 'userSpaceOnUse');
+        const cr = document.createElementNS(NS, 'rect');
+        cr.setAttribute('x', rx); cr.setAttribute('y', top);
+        cr.setAttribute('width', rw); cr.setAttribute('height', bot - top);
+        cp.appendChild(cr); bdefs.appendChild(cp);
+        const g = document.createElementNS(NS, 'g');
+        g.setAttribute('clip-path', `url(#${cp.id})`);
+        bsvg.appendChild(g);
+        snowImgs.push(...tileImages(g, top, bot));
+        const fade = Math.min(SEASON_FADE, (r.b - r.a) / 2);
+        const edge = (yFrom, yTo, colorAtY, tag) => {
+          const a = Math.max(Math.min(yFrom, yTo), top), b = Math.min(Math.max(yFrom, yTo), bot);
+          if (b <= a) return;
+          const lg = document.createElementNS(NS, 'linearGradient');
+          lg.id = `snowfade${bi}_${k}${tag}`;
+          lg.setAttribute('gradientUnits', 'userSpaceOnUse');
+          lg.setAttribute('x1', '0'); lg.setAttribute('y1', yFrom); lg.setAttribute('x2', '0'); lg.setAttribute('y2', yTo);
+          const color = SEASON_GROUND[SEASON_OF(Math.round(monthAtY(colorAtY)))];
+          [[0, 1], [1, 0]].forEach(([off, o]) => {
+            const st = document.createElementNS(NS, 'stop');
+            st.setAttribute('offset', off * 100 + '%');
+            st.setAttribute('stop-color', color); st.setAttribute('stop-opacity', o);
+            lg.appendChild(st);
+          });
+          bdefs.appendChild(lg);
+          const fr = document.createElementNS(NS, 'rect');
+          fr.setAttribute('x', rx); fr.setAttribute('y', a);
+          fr.setAttribute('width', rw); fr.setAttribute('height', b - a);
+          fr.setAttribute('fill', `url(#${lg.id})`);
+          bsvg.appendChild(fr);
+        };
+        // Neighbour colours come from the same 420 px sample grid the
+        // gradient stops use: the sample before the first winter one, and
+        // the first non-winter one after it (r.b is that sample).
+        if (r.a > -3000) edge(r.a, r.a + fade, r.a + SEASON_FADE - 420, 'a');  // previous season fades out downward
+        if (r.b < LEN + 3000) edge(r.b, r.b - fade, r.b, 'b');                   // next season fades out upward
+      });
+    }
     map.appendChild(bsvg);
-    bands.push({svg: bsvg, y0});
+
+    const band = {
+      svg: bsvg, y0, overlayFile, inkImgs, dirtImg, snowImgs,
+      overlayUrl: assetUrl(overlayFile), dirtFill: `url(#dirt${bi})`,
+      attached: false, attachedAt: 0, overlayState: 'loading', dirtState: 'loading', detailImgs: [],
+    };
+    if (!GROUND_FLAT){
+      // Paint-state listeners are wired once at build so a late attach only
+      // has to flip href. Chromium quirk: a <pattern>'s <image> whose href
+      // fails to load does not fall back to transparent, it paints an opaque
+      // placeholder over the gradient rect and breaks "never blank". So on
+      // error the href is cleared, which reverts the pattern to its
+      // transparent pre-attach state; overlayState still records 'failed' so
+      // missingOverlays keeps detecting it. dirtState works the same way.
+      // The overlay is many tiles of one bitmap; the first tile's events
+      // stand for the band (same URL, same decode, same outcome).
+      if (inkImgs.length){
+        inkImgs[0].addEventListener('load', () => { band.overlayState = 'painted'; });
+        inkImgs[0].addEventListener('error', () => { band.overlayState = 'failed'; });
+      } else {
+        band.overlayState = 'painted';  // ?ink=off: nothing to wait for
+      }
+      inkImgs.forEach(im => im.addEventListener('error', () => im.removeAttribute('href')));
+      dirtImg.addEventListener('load', () => { band.dirtState = 'painted'; });
+      dirtImg.addEventListener('error', () => { band.dirtState = 'failed'; dirtImg.removeAttribute('href'); });
+      snowImgs.forEach(im => im.addEventListener('error', () => im.removeAttribute('href')));
+    }
+    bands.push(band);
   }
   const bandFor = yy => clamp(Math.floor((yy - BAND0) / BANDH), 0, NB - 1);
 
@@ -234,11 +436,43 @@
   }
 
   bands.forEach(b => {
-    const bandPath = document.createElementNS(NS, 'path');
-    bandPath.setAttribute('d', dStr); bandPath.setAttribute('fill', 'none');
-    bandPath.setAttribute('stroke', '#5C5137'); bandPath.setAttribute('stroke-width', '120');
-    bandPath.setAttribute('stroke-linecap', 'round'); bandPath.setAttribute('opacity', '0.12');
-    b.svg.appendChild(bandPath);
+    if (GROUND_FLAT){
+      // ?ground=flat (or an empty manifest) is a faithful rollback to
+      // today's look: the dirt pattern never gets an href, so painting the
+      // trail with it would show nothing — build the old plain stroke
+      // instead of relying on that at runtime.
+      const bandPath = document.createElementNS(NS, 'path');
+      bandPath.setAttribute('d', dStr); bandPath.setAttribute('fill', 'none');
+      bandPath.setAttribute('stroke', '#5C5137'); bandPath.setAttribute('stroke-width', '120');
+      bandPath.setAttribute('stroke-linecap', 'round'); bandPath.setAttribute('opacity', '0.12');
+      b.svg.appendChild(bandPath);
+    } else {
+      // Fallback stroke, painted first (i.e. under everything else in this
+      // band): if the dirt tile 404s, url(#dirtN) paints transparent and —
+      // without this — the trail vanishes into the season ground, leaving
+      // only the faint ink edge and dots below. This is the old flat-mode
+      // stroke/opacity, so a failed tile degrades to today's look instead of
+      // disappearing. No rnd() call; one extra path inside the existing band
+      // <svg> (not a new element outside it, so no new GPU surface).
+      const fallbackPath = document.createElementNS(NS, 'path');
+      fallbackPath.setAttribute('d', dStr); fallbackPath.setAttribute('fill', 'none');
+      fallbackPath.setAttribute('stroke', '#5C5137'); fallbackPath.setAttribute('stroke-width', '120');
+      fallbackPath.setAttribute('stroke-linecap', 'round'); fallbackPath.setAttribute('stroke-opacity', '0.12');
+      b.svg.appendChild(fallbackPath);
+      // Painted dirt trail: an ink edge line drawn first, slightly
+      // wider than the trail stroke so it peeks out as an outline, then the
+      // dirt-tile pattern on top at full opacity. dStr geometry is unchanged.
+      const inkEdge = document.createElementNS(NS, 'path');
+      inkEdge.setAttribute('d', dStr); inkEdge.setAttribute('fill', 'none');
+      inkEdge.setAttribute('stroke', INK_COLOR); inkEdge.setAttribute('stroke-width', '126');
+      inkEdge.setAttribute('stroke-linecap', 'round'); inkEdge.setAttribute('stroke-opacity', '.35');
+      b.svg.appendChild(inkEdge);
+      const dirtPath = document.createElementNS(NS, 'path');
+      dirtPath.setAttribute('d', dStr); dirtPath.setAttribute('fill', 'none');
+      dirtPath.setAttribute('stroke', GROUND_DIRT ? b.dirtFill : '#8B8A7E'); dirtPath.setAttribute('stroke-width', '120');
+      dirtPath.setAttribute('stroke-linecap', 'round');
+      b.svg.appendChild(dirtPath);
+    }
     if (creekY + 160 > b.y0 && creekY - 160 < b.y0 + BANDH){
       const g = document.createElementNS(NS, 'g');
       g.innerHTML = creekGroup.innerHTML;
@@ -251,16 +485,35 @@
     }
     const dotsPath = document.createElementNS(NS, 'path');
     dotsPath.setAttribute('d', dStr); dotsPath.setAttribute('fill', 'none');
-    dotsPath.setAttribute('stroke', '#6B5C40'); dotsPath.setAttribute('stroke-width', '13');
+    dotsPath.setAttribute('stroke', GROUND_FLAT ? '#6B5C40' : INK_COLOR); dotsPath.setAttribute('stroke-width', '13');
     dotsPath.setAttribute('stroke-linecap', 'round'); dotsPath.setAttribute('stroke-dasharray', '0.01 42');
+    // stroke-opacity, not opacity: element opacity allocates an offscreen
+    // buffer per band on iOS (see the snow strips above for the same rule).
+    if (!GROUND_FLAT) dotsPath.setAttribute('stroke-opacity', '.45');
     b.svg.appendChild(dotsPath);
     b.detail = document.createElementNS(NS, 'g');
     b.svg.appendChild(b.detail);
+    // Ground-detail sprites (scree/log/flower atlas cells or, flat-mode,
+    // their vector predecessors) live in their own subgroup so the
+    // window.__journeyDetailVectorCount check below can count just these —
+    // b.detail also holds the holiday and birthday decorations appended
+    // later, which keep their vector shapes.
+    b.gdetail = document.createElementNS(NS, 'g');
+    b.detail.appendChild(b.gdetail);
     b.shadows = document.createElementNS(NS, 'g');
     b.svg.appendChild(b.shadows);
   });
 
-  /* flat ground details: scree, boulders-lite, flowers, leaf litter, logs */
+  /* Ground details: scree, fallen logs, spring/summer flowers, winter drift,
+     autumn litter. Not-flat mode replaces scree/log/flower with atlas cells
+     ; winter drift and autumn litter get no cell and are simply dropped,
+     since the winter overlay paints its own drifts and the autumn palette
+     carries the litter look. Every branch still calls rnd() exactly as
+     many times as its flat-mode markup does, flat or not: this loop runs
+     before grove/prop placement further down, and an extra or missing
+     rnd() call here would shift that seeded sequence and move every tree on
+     the site, not just re-skin this detail (same rationale as the per-band
+     overlay pick above). */
   const bandDh = new Array(NB).fill('');
   for (let d = 250; d < PLEN - 250; d += 210 + rnd() * 150){
     const p = atDist(d);
@@ -270,29 +523,89 @@
     const r = rnd();
     let dh = '';
     if (r < 0.24){       // scree / pebbles
-      dh += `<g fill="#9C9C8C" opacity=".7"><ellipse cx="${x}" cy="${yy}" rx="${8+rnd()*10}" ry="${4+rnd()*5}"/>
-             <ellipse cx="${x+20}" cy="${yy+8}" rx="${5+rnd()*7}" ry="${3+rnd()*4}"/></g>`;
+      const r1w = 8+rnd()*10, r1h = 4+rnd()*5, r2w = 5+rnd()*7, r2h = 3+rnd()*4;
+      dh += GROUND_FLAT
+        ? `<g fill="#9C9C8C" opacity=".7"><ellipse cx="${x}" cy="${yy}" rx="${r1w}" ry="${r1h}"/>
+             <ellipse cx="${x+20}" cy="${yy+8}" rx="${r2w}" ry="${r2h}"/></g>`
+        : atlasCellMarkup('scree-patch', x, yy);
     } else if (r < 0.34){ // fallen log
-      dh += `<g transform="translate(${x},${yy}) rotate(${rnd()*80-40})">
+      const rot = rnd()*80-40;
+      dh += GROUND_FLAT
+        ? `<g transform="translate(${x},${yy}) rotate(${rot})">
              <rect x="-34" y="-7" width="68" height="14" rx="7" fill="#84704C"/>
-             <circle cx="34" cy="0" r="7" fill="#A08A5E"/></g>`;
+             <circle cx="34" cy="0" r="7" fill="#A08A5E"/></g>`
+        : `<g transform="rotate(${rot} ${x} ${yy})">${atlasCellMarkup('fallen-log', x, yy)}</g>`;
     } else if (season === 'winter'){
-      dh += `<ellipse cx="${x}" cy="${yy}" rx="${50+rnd()*60}" ry="${14+rnd()*10}" fill="#F2F4EC" opacity=".7"/>`;
+      const rw = 50+rnd()*60, rh = 14+rnd()*10;
+      dh += GROUND_FLAT
+        ? `<ellipse cx="${x}" cy="${yy}" rx="${rw}" ry="${rh}" fill="#F2F4EC" opacity=".7"/>`
+        : '';  // the winter overlay paints its own drifts
     } else if (season === 'spring'){
-      dh += `<g><circle cx="${x}" cy="${yy}" r="5.5" fill="${rnd()>0.5?'#D98BA4':'#EFE9F2'}"/>
+      const coin = rnd() > 0.5;
+      dh += GROUND_FLAT
+        ? `<g><circle cx="${x}" cy="${yy}" r="5.5" fill="${coin?'#D98BA4':'#EFE9F2'}"/>
              <circle cx="${x+16}" cy="${yy+8}" r="4.5" fill="#EAD9EE"/>
-             <circle cx="${x-13}" cy="${yy+11}" r="4" fill="#D98BA4"/></g>`;
+             <circle cx="${x-13}" cy="${yy+11}" r="4" fill="#D98BA4"/></g>`
+        : atlasCellMarkup(`flower-clump-${coin ? 'a' : 'b'}`, x, yy);
     } else if (season === 'summer'){
-      dh += `<g fill="#F2E28C" opacity=".9"><circle cx="${x}" cy="${yy}" r="4.5"/>
-             <circle cx="${x+15}" cy="${yy+9}" r="3.5"/><circle cx="${x-12}" cy="${yy+7}" r="3"/></g>`;
+      dh += GROUND_FLAT
+        ? `<g fill="#F2E28C" opacity=".9"><circle cx="${x}" cy="${yy}" r="4.5"/>
+             <circle cx="${x+15}" cy="${yy+9}" r="3.5"/><circle cx="${x-12}" cy="${yy+7}" r="3"/></g>`
+        : atlasCellMarkup(`flower-clump-${Math.round(x + yy) % 2 === 0 ? 'a' : 'b'}`, x, yy);
     } else {
-      dh += `<g fill="#B98A4A" opacity=".8"><ellipse cx="${x}" cy="${yy}" rx="6" ry="3.5" transform="rotate(30 ${x} ${yy})"/>
+      dh += GROUND_FLAT
+        ? `<g fill="#B98A4A" opacity=".8"><ellipse cx="${x}" cy="${yy}" rx="6" ry="3.5" transform="rotate(30 ${x} ${yy})"/>
              <ellipse cx="${x+17}" cy="${yy+7}" rx="5" ry="3" transform="rotate(-20 ${x+17} ${yy+7})"/>
-             <ellipse cx="${x-12}" cy="${yy+11}" rx="5" ry="3" transform="rotate(60 ${x-12} ${yy+11})"/></g>`;
+             <ellipse cx="${x-12}" cy="${yy+11}" rx="5" ry="3" transform="rotate(60 ${x-12} ${yy+11})"/></g>`
+        : '';  // autumn litter: the autumn palette carries it, no cell exists
     }
     bandDh[bandFor(yy)] += dh;
   }
-  bands.forEach((b, i) => { b.detail.innerHTML = bandDh[i]; });
+  bands.forEach((b, i) => {
+    b.gdetail.innerHTML = bandDh[i];
+    // Collected once so update()'s per-frame lookahead attach/detach only
+    // ever sets/clears href, never re-queries the DOM.
+    b.detailImgs = Array.from(b.gdetail.querySelectorAll('image.atlas'));
+    // Same Chromium <pattern>-style quirk can hit a plain <image> too when
+    // its href 404s mid-tile-decode; clearing href on error is cheap
+    // insurance for the same "never blank" intent.
+    b.detailImgs.forEach(im => im.addEventListener('error', () => im.removeAttribute('href')));
+  });
+  // Smoke-test proof that no vector scree, flower or log path is left
+  // behind, scoped to b.gdetail (b.detail also holds the vector holiday
+  // and birthday decorations).
+  window.__journeyDetailVectorCount = GROUND_FLAT ? undefined :
+    bands.reduce((n, b) => n + b.gdetail.querySelectorAll('ellipse, rect, circle').length, 0);
+
+  // Reduced motion jumps the camera straight to its target instead of
+  // gliding, so a band can enter the lookahead window and need to paint
+  // within the very same frame as the jump — there is no glide time for a
+  // fresh network fetch + decode to finish invisibly. Preloading every art
+  // file a band could reference, once here at build for every profile
+  // (never in flat mode, where nothing is ever attached), warms WebKit's
+  // decoded-image cache — keyed by URL and shared by every band that points
+  // at the same file — so an attach after an instant jump reads from cache
+  // instead of paying that cost live.
+  if (!GROUND_FLAT){
+    const preload = new Set(bands.map(b => b.overlayFile));
+    preload.forEach(f => { const u = assetUrl(f); if (u){ const im = new Image(); im.src = u; } });
+    [DIRT_URL, winterRanges.length ? SNOW_URL : null]
+      .forEach(u => { if (u){ const im = new Image(); im.src = u; } });
+    // Atlas preload doubles as the atlasState probe (see its declaration
+    // above): one Image, load/error listeners flip the shared state that
+    // every band's missingOverlays check reads.
+    if (ATLAS_URL){
+      const atlasProbe = new Image();
+      atlasProbe.addEventListener('load', () => { atlasState = 'painted'; });
+      atlasProbe.addEventListener('error', () => { atlasState = 'failed'; });
+      atlasProbe.src = ATLAS_URL;
+    }
+  }
+
+  // Debug hook for the smoke script's lookahead scenario: a plain
+  // snapshot, not live references, so reading it can't itself perturb state.
+  window.__journeyBands = () => bands.map(b => (
+    {y0: b.y0, hidden: !!b.hidden, attached: !!b.attached, overlayFile: b.overlayFile, winter: b.snowImgs.length > 0}));
 
   /* cloud shadows drifting over the ground */
   if (!reduced && !LITE){
@@ -1052,8 +1365,17 @@
      per frame — the difference between smooth and janky on impatient
      scrolling. */
   let camDist = 0, lastT = 0;
+  // Capped ring of overlay-attach timestamps: the smoke script checks that
+  // no long task starts within 100ms of any of these.
+  const attachTimes = [];
+  let frameCount = 0;
 
   function update(now){
+    // Frame-time budget for the smoke script: timed from the top of
+    // update() to its last line, since that is the whole per-frame cost this
+    // engine controls — the gap between rAF callbacks is pinned to the
+    // display's refresh rate and tells us nothing about our own work.
+    const statT0 = performance.now();
     const doc = document.documentElement;
     const prog = clamp(scrollY / (doc.scrollHeight - innerHeight), 0, 1);
     const target = prog * PLEN;
@@ -1080,21 +1402,71 @@
     if (ridge) ridge.style.transform = `translateX(${(-camX * 0.045).toFixed(1)}px)`;
 
     const arrived = camProg > 0.012;
+    // Counted alongside the existing cull passes below (no extra walk) for
+    // the __journeyStats surface-count hook at the bottom of this function.
+    let aliveBbs = 0, aliveProps = 0, aliveBands = 0;
+    let attachedOverlays = 0, missingOverlays = 0;
     bbs.forEach(b => {
       const on = arrived && b.y > camY - 1500 && b.y < camY + 800;
+      if (on) aliveBbs++;
       if (on !== b.el.classList.contains('on')) b.el.classList.toggle('on', on);
     });
     props.forEach(pr => {
       const vis = pr.yMax > camY - 2400 && pr.yMax < camY + 900;
+      if (vis) aliveProps++;
       if (vis === !pr.hidden) return;
       pr.hidden = !vis;
       pr.el.style.display = vis ? '' : 'none';
     });
     bands.forEach(b => {
       const vis = b.y0 < camY + 1700 && b.y0 + BANDH > camY - 2400;
-      if (vis === !b.hidden) return;
-      b.hidden = !vis;
-      b.svg.style.display = vis ? '' : 'none';
+      if (vis) aliveBands++;
+      if (vis !== !b.hidden){
+        b.hidden = !vis;
+        b.svg.style.display = vis ? '' : 'none';
+      }
+      // Lookahead is the visibility window widened by one BANDH on
+      // each side, attached and detached only on a state change, same guard
+      // pattern as b.hidden above. Reduced motion does NOT widen this
+      // further — see the preload block above for how that profile is
+      // handled instead.
+      //
+      // Worst case: band tops fall in an open interval of 4100 + 2*1600 px
+      // (visibility) + 2*1600 px (lookahead) = 8900 px, so at most
+      // ceil(8900/1600) = 6 bands are attached at once; the visibility
+      // window alone gives ceil(5700/1600) = 4 alive. The smoke test asserts
+      // the 6-band bound.
+      if (GROUND_FLAT) return;
+      const look = LOOKAHEAD_BANDS * BANDH;
+      const ahead = b.y0 < camY + 1700 + look && b.y0 + BANDH > camY - 2400 - look;
+      if (ahead !== b.attached){
+        b.attached = ahead;
+        if (ahead){
+          b.attachedAt = statT0;
+          attachTimes.push(b.attachedAt);
+          if (attachTimes.length > 64) attachTimes.shift();
+          b.overlayState = 'loading'; b.dirtState = 'loading';
+          if (b.overlayUrl) b.inkImgs.forEach(im => im.setAttribute('href', b.overlayUrl));
+          if (SNOW_URL) b.snowImgs.forEach(im => im.setAttribute('href', SNOW_URL));
+          if (DIRT_URL) b.dirtImg.setAttribute('href', DIRT_URL);
+          if (ATLAS_URL) b.detailImgs.forEach(im => im.setAttribute('href', ATLAS_URL));
+        } else {
+          b.inkImgs.forEach(im => im.removeAttribute('href'));
+          b.snowImgs.forEach(im => im.removeAttribute('href'));
+          b.dirtImg.removeAttribute('href');
+          b.detailImgs.forEach(im => im.removeAttribute('href'));
+        }
+      }
+      if (b.attached) attachedOverlays++;
+      if (vis && b.attached && statT0 - b.attachedAt > 1000){
+        // Same detector as before (a visible, long-attached band that hasn't
+        // reported 'painted'), extended to the dirt-trail pattern and — for
+        // bands that actually place atlas sprites — the shared tree/rock
+        // atlas, so a failed dirt or atlas tile is caught exactly like a
+        // failed ground overlay.
+        const atlasMissing = b.detailImgs.length > 0 && atlasState !== 'painted';
+        if (b.overlayState !== 'painted' || b.dirtState !== 'painted' || atlasMissing) missingOverlays++;
+      }
     });
 
     {
@@ -1140,6 +1512,24 @@
     if (end !== lastEnd){ lastEnd = end; endnote.classList.toggle('on', end); }
 
     if (fanOpenEl && Math.abs(scrollY - fanScrollY) > 90) closeFan();
+
+    // Smoke-test hook: a plain object the browser smoke script
+    // polls, so the pre-art baseline is measured with the same instrument
+    // later units (overlays, motion) will be judged against. aliveBands and
+    // aliveSurfaces reuse the counts above rather than re-walking the DOM;
+    // aliveSurfaces = bands + props (which already holds groves) + billboards.
+    window.__journeyStats = {
+      camY,
+      mk, season,  // lets the smoke script locate a fixture camp by month
+      aliveBands,
+      aliveSurfaces: aliveBands + aliveProps + aliveBbs,
+      attachedOverlays,   // both 0 in flat mode: nothing is ever attached
+      missingOverlays,
+      attachTimes,
+      updateMs: performance.now() - statT0,
+      frames: ++frameCount,
+      flat: GROUND_FLAT,
+    };
   }
 
   /* keep animating until the camera has caught up with the scrollbar */

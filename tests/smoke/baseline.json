@@ -1,0 +1,29 @@
+{
+  "desktop": {
+    "aliveBandsMax": 4,
+    "aliveSurfacesMax": 43,
+    "missingOverlaysMax": 0,
+    "attachedOverlaysMax": 6,
+    "updateMsAvg": 0.33186602957511063,
+    "updateMsWorst": 0.6000000238418579,
+    "longTasks": 0
+  },
+  "lite": {
+    "aliveBandsMax": 4,
+    "aliveSurfacesMax": 44,
+    "missingOverlaysMax": 0,
+    "attachedOverlaysMax": 6,
+    "updateMsAvg": 0.2981319326583364,
+    "updateMsWorst": 1.199999988079071,
+    "longTasks": 0
+  },
+  "reduced": {
+    "aliveBandsMax": 4,
+    "aliveSurfacesMax": 42,
+    "missingOverlaysMax": 0,
+    "attachedOverlaysMax": 6,
+    "updateMsAvg": 0.6749999821186066,
+    "updateMsWorst": 1.399999976158142,
+    "longTasks": 0
+  }
+}
