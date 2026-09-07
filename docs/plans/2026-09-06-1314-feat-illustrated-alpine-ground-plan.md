@@ -467,6 +467,8 @@ U1 → U2 → U3 form the foundation and can be done in one PR. U4 lands next an
 
 ### U7. Painted mountain backdrop with valley flanks
 
+Superseded on 2026-09-07 by `docs/plans/2026-09-07-1320-feat-trail-end-mountain-range-plan.md`: the backdrop became an in-world range standing at the trail's end, after the screen-space version and its lowered camera failed on staging. The unit below is kept for the record and is not to be built.
+
 - **Goal:** Replace the ridge SVG with a painted backdrop of left flank, right flank and centre range that drifts with the camera and never covers trail content.
 - **Requirements:** R2, R9, R10, R11, R15; AE3; F1.
 - **Dependencies:** U1, U2. Independent of U4 to U6.
@@ -511,7 +513,7 @@ U1 → U2 → U3 form the foundation and can be done in one PR. U4 lands next an
 
 - **Goal:** Make the trailhead home, creek bridge, one dense spruce grove, Belle's lantern and the trail's end visibly richer with extra sprites, without touching the camera.
 - **Requirements:** R21, R22; AE6.
-- **Dependencies:** U5, U7.
+- **Dependencies:** U5, and the trail-end range plan (`docs/plans/2026-09-07-1320-feat-trail-end-mountain-range-plan.md`), which replaced U7.
 - **Files:** `static/js/journey.js` (a dressing pass after events are placed, using `prop()`), `static/images/alpine/manifest.json` (five set-dressing cells already declared in U1).
 - **Approach:**
   1. Resolve the five spots from the model: the home at the trailhead, the creek crossing, the grove bucket with the most items, the lantern event, the trail's end marker.
