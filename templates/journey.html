@@ -9,17 +9,20 @@
 <body class="t-day">
 
 <div class="scene" id="scene">
-  <!-- Painted backdrop (U7). It sits BEFORE .zoom on purpose, for two
-       reasons: the world paints over it, so the mountains can never occlude
-       the trail, camps or photos; and it stays outside the tilted 3D tree,
-       so it is not one of the untiled backing stores and the dusk/night
-       filters on .ridge stay legal. Sources come from the manifest in
-       journey.js; a failed image hides itself and the sky gradient shows. -->
   <div class="ridge" id="ridge">
     <div id="ridgeInner">
-      <img class="bd bd-centre" data-file="backdrop-centre-range.webp" alt="" decoding="async">
-      <img class="bd bd-left" data-file="backdrop-left-flank.webp" alt="" decoding="async">
-      <img class="bd bd-right" data-file="backdrop-right-flank.webp" alt="" decoding="async">
+      <svg viewBox="0 0 1600 300" preserveAspectRatio="none" height="220" width="110%">
+        <path d="M0 300 L0 190 L140 120 L260 200 L420 70 L560 180 L700 110 L860 210 L1020 90 L1180 190 L1330 130 L1470 200 L1600 150 L1600 300 Z"
+              fill="#C2CFC4" opacity=".8"/>
+        <path d="M420 70 L470 130 L370 130 Z M1020 90 L1065 145 L975 145 Z" fill="#E9EDE6" opacity=".9"/>
+        <path d="M0 300 L0 240 L180 180 L340 250 L520 160 L720 240 L900 170 L1090 250 L1260 190 L1430 250 L1600 210 L1600 300 Z"
+              fill="#9FB29E"/>
+        <g fill="#77906F">
+          <path d="M200 250 L212 222 L224 250 Z M232 252 L242 230 L252 252 Z"/>
+          <path d="M740 244 L752 216 L764 244 Z M772 246 L782 224 L792 246 Z"/>
+          <path d="M1290 246 L1302 218 L1314 246 Z"/>
+        </g>
+      </svg>
     </div>
   </div>
   <div class="zoom" id="zoom">
@@ -27,10 +30,6 @@
       <div class="map" id="map"></div>
     </div>
   </div>
-  <!-- Haze at the ground's far edge, in front of the world: the alive bands
-       end 2400 to 4000 world px ahead of the camera, so without this strip
-       a whole band would pop into view at the far edge as you walk. -->
-  <div id="mist" aria-hidden="true"></div>
 </div>
 
 <div id="stars" aria-hidden="true"></div>
