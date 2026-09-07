@@ -25,6 +25,12 @@ The vertical colour gradient every Band is filled with, whose stops follow the s
 ### Lite tier
 The reduced-effect profile the site selects on coarse-pointer or mobile devices. The painted art is the same on the Lite tier; only motion and blend effects are dropped.
 
+### Trail-end range
+The painted mountain range standing on the ground just past the Trail's end, drawn as upright planes inside the world like trees and cards, so it grows with perspective as the camera approaches and fills the top of the frame at the end of the scroll. It is the only mountain backdrop; the earlier screen-space ridge and the deferred U7 backdrop are superseded by it.
+
+### Tree line
+The dense run of spruce sprites, boulders and grass clumps along the base of the Trail-end range that hides the paintings' flat bottom edge and receives the end of the visible path.
+
 ## Flagged ambiguities
 
 - "Overlay" is used both for the painted ground textures inside a Band and for the screen-space UI layers (photo fan, lightbox, sky tint). In ground work it means the painted texture; the UI layers are overlays only in the interface sense.
